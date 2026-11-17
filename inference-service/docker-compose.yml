@@ -1,0 +1,27 @@
+services:
+  idm-vton:
+    build: .
+    image: stylaiize-idm-vton:latest
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./IDM-VTON:/app/IDM-VTON:ro
+      - ./models:/models:ro
+      - ./data:/data
+    gpus: all
+    shm_size: "8gb"
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python3.10",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 180s

@@ -1,0 +1,31 @@
+title = "StylAIze secret scanning configuration"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Safe example files, documentation and test fixtures"
+paths = [
+  '''\.env\.example$''',
+  '''\.env\.sample$''',
+  '''\.env\.template$''',
+  '''(^|/)README\.md$''',
+  '''(^|/)DEPLOYMENT\.md$''',
+  '''(^|/)THIRD_PARTY_NOTICES\.md$''',
+  '''(^|/)SECURITY\.md$''',
+  '''(^|/)docs/''',
+  '''(^|/)src/test/''',
+  '''(^|/)(test|tests|__tests__)/''',
+  '''\.(test|spec)\.[jt]sx?$''',
+  '''package-lock\.json$''',
+]
+
+[[rules]]
+id = "stylaiize-vton-service-api-key"
+description = "IDM-VTON service API key assigned in environment files"
+regex = '''IDM_VTON_SERVICE_API_KEY\s*=\s*["']?([A-Za-z0-9_\-]{20,})'''
+secretGroup = 1
+tags = ["key", "vton"]
+
+[rules.allowlist]
+regexes = ['''(?i)(replace|your|example|placeholder|change|xxx|dummy|sample)''']

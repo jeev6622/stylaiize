@@ -1,0 +1,34 @@
+{
+  "name": "stylaiize",
+  "version": "1.0.0",
+  "private": true,
+  "description": "StylAIze - AI Personal Stylist. See it. Style it. Buy it for less.",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n web,api -c cyan,magenta \"npm run dev --workspace @stylaiize/web\" \"npm run dev --workspace @stylaiize/api\"",
+    "dev:web": "npm run dev --workspace @stylaiize/web",
+    "dev:api": "npm run dev --workspace @stylaiize/api",
+    "build": "npm run build --workspace @stylaiize/shared && npm run build --workspace @stylaiize/api && npm run build --workspace @stylaiize/web",
+    "build:web": "npm run build --workspace @stylaiize/web",
+    "build:api": "npm run build --workspace @stylaiize/shared && npm run build --workspace @stylaiize/api",
+    "typecheck": "npm run typecheck --workspace @stylaiize/web && npm run typecheck --workspace @stylaiize/api && npm run typecheck --workspace @stylaiize/shared",
+    "lint": "npm run lint --workspace @stylaiize/web && npm run lint --workspace @stylaiize/api",
+    "test": "npm run test --workspace @stylaiize/api"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  },
+  "allowScripts": {
+    "esbuild@0.28.1": true,
+    "esbuild@0.21.5": true,
+    "sharp@0.34.5": true,
+    "unrs-resolver@1.12.2": true
+  }
+}

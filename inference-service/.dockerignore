@@ -1,0 +1,10 @@
+.env
+.git
+.venv
+__pycache__
+*.pyc
+*.pyo
+IDM-VTON
+models
+data
+tests

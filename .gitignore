@@ -91,7 +91,7 @@ inference-service/results/
 inference-service/outputs/
 inference-service/hf-cache/
 inference-service/.cache/
-models/
+/apps/api/models/
 checkpoints/
 weights/
 datasets/

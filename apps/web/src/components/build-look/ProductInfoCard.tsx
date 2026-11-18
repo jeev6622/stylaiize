@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { Star, X, ShoppingBag, Tag, Palette, Ruler, Building2, ExternalLink, RefreshCw } from "lucide-react";
 import { cn, formatCurrency, storeSearchUrl } from "@/lib/utils";
@@ -60,11 +61,14 @@ function RatingStars({ rating }: { rating: number }) {
           </button>
 
           {item.imageUrl && (
-            <div className="mb-4 h-44 w-full overflow-hidden rounded-xl bg-secondary/30">
-              <img
+            <div className="relative mb-4 h-44 w-full overflow-hidden rounded-xl bg-secondary/30">
+              <Image
                 src={item.imageUrl}
                 alt={item.name}
-                className="h-full w-full object-cover"
+                fill
+                sizes="(max-width: 420px) calc(100vw - 4rem), 332px"
+                unoptimized
+                className="object-cover"
               />
             </div>
           )}

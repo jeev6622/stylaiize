@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -21,7 +22,6 @@ import {
 } from "@stylaiize/shared";
 import { toOutfitData, toApiItems } from "@/lib/build-look";
 import type { OutfitData, ScrollStage } from "@/components/build-look/types";
-import { FashionScene } from "@/components/build-look/FashionScene";
 import { BackgroundEffects } from "@/components/build-look/BackgroundEffects";
 import { ScrollProgress } from "@/components/build-look/ScrollProgress";
 import { ScrollCard } from "@/components/build-look/ScrollCard";
@@ -38,6 +38,28 @@ import {
   EMPTY_BUILD_LOOK_FORM,
   type BuildLookFormState,
 } from "@/components/build-look/BuildLookForm";
+
+const SCROLL_CONTAINER_ID = "app-main-content";
+
+function getScrollContainer(): HTMLElement | null {
+  return document.getElementById(SCROLL_CONTAINER_ID);
+}
+
+const FashionScene = dynamic(
+  () =>
+    import("@/components/build-look/FashionScene").then(
+      (module) => module.FashionScene,
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="relative h-full w-full overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(139,92,246,0.12),transparent_65%)]" />
+        <div className="absolute bottom-[15%] left-1/2 h-40 w-24 -translate-x-1/2 rounded-t-[3rem] bg-gradient-to-b from-white/[0.06] to-transparent blur-sm" />
+      </div>
+    ),
+  },
+);
 
 const CATEGORY_LABELS: Record<string, string> = {
   upperwear: "Upperwear",
@@ -147,7 +169,6 @@ export default function BuildLookPage() {
   const [error, setError] = useState<string | null>(null);
 
   const sectionsRef = useRef<(HTMLElement | null)[]>([]);
-  const scrollRef = useRef<HTMLDivElement | null>(null);
 
   const outfit: OutfitData | null = useMemo(
     () => (look ? toOutfitData(look) : null),
@@ -267,7 +288,7 @@ export default function BuildLookPage() {
     setGrooming(null);
     setActiveStage(0);
     setActiveItemId(null);
-    scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+    getScrollContainer()?.scrollTo({ top: 0, behavior: "smooth" });
   }, []);
 
   const handleSaveOutfit = useCallback(async () => {
@@ -331,7 +352,7 @@ export default function BuildLookPage() {
           }
         }
       },
-      { threshold: 0.5 },
+      { root: getScrollContainer(), threshold: 0.5 },
     );
 
     sectionsRef.current.forEach((s) => {
@@ -351,7 +372,7 @@ export default function BuildLookPage() {
 
   if (!outfit) {
     return (
-      <div className="relative min-h-full overflow-y-auto" style={{ background: "#050816" }}>
+      <div className="relative min-h-full" style={{ background: "#050816" }}>
         <BackgroundEffects activeStage={0} />
         <div className="relative z-10 mx-auto flex min-h-full max-w-2xl flex-col justify-center px-6 py-16">
           <Link
@@ -397,34 +418,21 @@ export default function BuildLookPage() {
 
   return (
     <div
-      ref={scrollRef}
-      className="relative h-full overflow-y-auto scroll-smooth"
+      className="relative min-h-full"
       style={{ background: "#050816" }}
     >
       <BackgroundEffects activeStage={activeStage} />
 
-      {/* Fixed 3D Scene */}
-      <div className="fixed inset-0 z-0 lg:bottom-auto lg:h-screen lg:w-[60%]">
-        <div className="h-[40vh] w-full lg:hidden">
-          <FashionScene
-            activeStage={activeStage}
-            highlightCategories={highlightCategories}
-            activeItemId={activeItemId}
-            autoRotate={!showReducedMotion}
-            items={outfit.items}
-            onHotspotClick={handleHotspotClick}
-          />
-        </div>
-        <div className="hidden h-full w-full lg:block">
-          <FashionScene
-            activeStage={activeStage}
-            highlightCategories={highlightCategories}
-            activeItemId={activeItemId}
-            autoRotate={!showReducedMotion}
-            items={outfit.items}
-            onHotspotClick={handleHotspotClick}
-          />
-        </div>
+      {/* Fixed 3D Scene — a single WebGL context shared by all breakpoints */}
+      <div className="pointer-events-none fixed inset-x-0 top-0 z-0 h-[40vh] [&_canvas]:pointer-events-auto lg:bottom-0 lg:right-auto lg:h-auto lg:w-[60%]">
+        <FashionScene
+          activeStage={activeStage}
+          highlightCategories={highlightCategories}
+          activeItemId={activeItemId}
+          autoRotate={!showReducedMotion}
+          items={outfit.items}
+          onHotspotClick={handleHotspotClick}
+        />
       </div>
 
       {/* Scroll Progress */}

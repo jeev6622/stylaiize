@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { Eyebrow, EditorialLink, Reveal } from "./ui";
 
 export function AiStylist() {
@@ -40,9 +41,13 @@ export function AiStylist() {
 
         <Reveal delay={0.12} className="lg:col-span-7">
           <figure className="relative overflow-hidden rounded-[1.75rem] shadow-[0_40px_90px_-40px_rgba(35,7,6,0.45)]">
-            <img
+            <Image
               src="/model-hero.jpg"
               alt="StylAIze stylist recommendation shown on a fashion editorial portrait"
+              width={1200}
+              height={1800}
+              sizes="(max-width: 1023px) 100vw, 58vw"
+              quality={90}
               loading="lazy"
               className="h-[58vh] w-full object-cover object-[50%_18%] sm:h-[64vh] lg:h-[72vh]"
             />

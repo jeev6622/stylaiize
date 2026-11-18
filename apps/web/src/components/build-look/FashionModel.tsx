@@ -11,20 +11,22 @@
  *   Belt/Watch → accessories     Body/Head/Hair → body (never highlighted)
  */
 
-import { useRef, useState, useEffect, useMemo, useCallback } from "react";
+import { useRef, useState, useEffect, useMemo } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 
 const GLB_MODEL_PATH = "/models/stylaiize-fashion-model.glb";
 
-// Check if GLB model file exists (HEAD request)
-async function checkGLBExists(): Promise<boolean> {
-  try {
-    const res = await fetch(GLB_MODEL_PATH, { method: "HEAD", cache: "no-store" });
-    return res.ok;
-  } catch {
-    return false;
+// Check once per session whether the optional GLB model is deployed.
+let glbAvailability: Promise<boolean> | null = null;
+
+function checkGLBExists(): Promise<boolean> {
+  if (!glbAvailability) {
+    glbAvailability = fetch(GLB_MODEL_PATH, { method: "HEAD", cache: "no-store" })
+      .then((res) => res.ok)
+      .catch(() => false);
   }
+  return glbAvailability;
 }
 
 // Categorize mesh name → outfit category
@@ -50,7 +52,13 @@ export function FashionModel(props: FashionModelProps) {
   const [useGLB, setUseGLB] = useState<boolean | null>(null);
 
   useEffect(() => {
-    checkGLBExists().then(setUseGLB);
+    let cancelled = false;
+    void checkGLBExists().then((available) => {
+      if (!cancelled) setUseGLB(available);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Still checking

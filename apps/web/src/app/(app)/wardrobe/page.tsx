@@ -1,5 +1,5 @@
 "use client";
-
+import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import {
@@ -480,11 +480,14 @@ export default function WardrobePage() {
                 className="group relative overflow-hidden rounded-2xl border border-border bg-card/50 p-4 transition-colors hover:border-primary/30"
               >
                 {item.imageUrl ? (
-                  <img
-                    src={item.imageUrl}
-                    alt={item.name}
-                    className="mb-3 h-40 w-full rounded-xl object-cover"
-                  />
+                  <Image
+  src={item.imageUrl}
+  alt={item.name}
+  width={800}
+  height={400}
+  unoptimized
+  className="mb-3 h-40 w-full rounded-xl object-cover"
+/>
                 ) : (
                   <div className="mb-3 grid h-40 w-full place-items-center rounded-xl bg-secondary/40">
                     <Shirt className="h-8 w-8 text-muted-foreground/50" />
@@ -630,11 +633,14 @@ export default function WardrobePage() {
 
             {form.imageUrl && (
               <div className="relative h-40 w-full overflow-hidden rounded-xl bg-secondary/30">
-                <img
-                  src={form.imageUrl}
-                  alt="Selected item"
-                  className="h-full w-full object-cover"
-                />
+                <Image
+  src={form.imageUrl}
+  alt="Selected item"
+  fill
+  unoptimized
+  sizes="(max-width: 768px) 100vw, 600px"
+  className="object-cover"
+/>
                 <Button
                   type="button"
                   variant="secondary"

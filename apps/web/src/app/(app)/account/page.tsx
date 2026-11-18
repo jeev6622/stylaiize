@@ -131,7 +131,18 @@ export default function AccountPage() {
         .filter(Boolean)
         .slice(0, 200);
       const min = budgetMin.trim() === "" ? 0 : Number(budgetMin);
-      const max = budgetMax.trim() === "" ? 0 : Number(budgetMax);
+const max = budgetMax.trim() === "" ? 0 : Number(budgetMax);
+
+if (
+  !Number.isFinite(min) ||
+  !Number.isFinite(max) ||
+  min < 0 ||
+  max < 0 ||
+  (max > 0 && min > max)
+) {
+  toast.error("Please enter a valid fashion budget.");
+  return;
+}
       const res = await apiClient.patch<{ memory: FashionMemory }>(API_ENDPOINTS.memory, {
         favoriteColors: colors,
         budget: min > 0 || max > 0 ? { min, max } : null,

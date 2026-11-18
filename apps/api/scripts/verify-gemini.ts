@@ -6,32 +6,36 @@
 import { env } from "../src/config/env";
 import { aiProviderStatus, resolveAIProvider } from "../src/infrastructure/ai/factory";
 
+function log(message: string): void {
+  process.stdout.write(`${message}\n`);
+}
+
 async function main(): Promise<void> {
-  console.log("--- Gemini configuration ---");
-  console.log(`AI_PROVIDER: ${JSON.stringify(env.AI_PROVIDER)}`);
-  console.log(`GEMINI_MODEL: ${env.GEMINI_MODEL}`);
-  console.log(
+  log("--- Gemini configuration ---");
+  log(`AI_PROVIDER: ${JSON.stringify(env.AI_PROVIDER)}`);
+  log(`GEMINI_MODEL: ${env.GEMINI_MODEL}`);
+  log(
     `GEMINI_API_KEY: ${env.GEMINI_API_KEY.trim().length > 0 ? "PRESENT" : "MISSING"}`,
   );
-  console.log(`dotenv loaded .env from cwd: ${process.cwd()}`);
+  log(`dotenv loaded .env from cwd: ${process.cwd()}`);
 
   const status = aiProviderStatus();
-  console.log(
+  log(
     `aiProviderStatus -> active=${status.active} configured=${status.configured} demoMode=${status.demoMode}`,
   );
 
   let provider;
   try {
     provider = resolveAIProvider();
-    console.log(`resolveAIProvider -> ${provider.name} (${provider.description})`);
-    console.log(`isConfigured: ${provider.isConfigured}`);
+    log(`resolveAIProvider -> ${provider.name} (${provider.description})`);
+    log(`isConfigured: ${provider.isConfigured}`);
   } catch (err) {
-    console.log(`resolveAIProvider THREW: ${err instanceof Error ? err.message : String(err)}`);
+    log(`resolveAIProvider THREW: ${err instanceof Error ? err.message : String(err)}`);
     process.exitCode = 1;
     return;
   }
 
-  console.log("--- Real Gemini request ---");
+  log("--- Real Gemini request ---");
   try {
     const res = await provider.chat({
       messages: [
@@ -41,14 +45,14 @@ async function main(): Promise<void> {
       maxOutputTokens: 512,
       temperature: 0,
     });
-    console.log(`chat() -> SUCCESS`);
-    console.log(`model text: ${JSON.stringify(res.text.slice(0, 200))}`);
-    console.log(
+    log(`chat() -> SUCCESS`);
+    log(`model text: ${JSON.stringify(res.text.slice(0, 200))}`);
+    log(
       `usage: in=${res.usage?.inputTokens} out=${res.usage?.outputTokens}`,
     );
   } catch (err) {
-    console.log(`chat() -> FAILED`);
-    console.log(
+    log(`chat() -> FAILED`);
+    log(
       `actual provider error: ${err instanceof Error ? err.message : String(err)}`,
     );
     process.exitCode = 1;
@@ -63,10 +67,10 @@ async function main(): Promise<void> {
     })) {
       streamed += chunk;
     }
-    console.log(`stream() -> SUCCESS chunks text: ${JSON.stringify(streamed.slice(0, 120))}`);
+    log(`stream() -> SUCCESS chunks text: ${JSON.stringify(streamed.slice(0, 120))}`);
   } catch (err) {
-    console.log(`stream() -> FAILED`);
-    console.log(
+    log(`stream() -> FAILED`);
+    log(
       `actual provider error: ${err instanceof Error ? err.message : String(err)}`,
     );
     process.exitCode = 1;

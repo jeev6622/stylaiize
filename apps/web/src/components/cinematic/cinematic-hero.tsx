@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import {
   motion,
@@ -539,10 +540,14 @@ export function CinematicHero() {
                     className="pointer-events-none absolute inset-0 z-[13] will-change-transform"
                   >
                     <div className="animate-breathe h-full w-full">
-                      <img
+                      <Image
                         src="/model-hero-cutout.webp"
                         alt=""
                         aria-hidden
+                        width={1200}
+                        height={1800}
+                        sizes="(max-width: 639px) 92vw, (max-width: 1023px) 47vh, 34vw"
+                        quality={90}
                         className="mx-auto block h-[62vh] w-auto max-w-[92vw] object-contain object-bottom [mask-image:linear-gradient(180deg,black_82%,rgba(0,0,0,0.35)_90%,transparent_100%)] sm:h-[70vh] lg:h-[94svh] lg:max-w-[34vw]"
                         style={{ opacity: 0.11, mixBlendMode: "screen", filter: "brightness(1.3)" }}
                       />
@@ -555,9 +560,14 @@ export function CinematicHero() {
                     onPointerLeave={() => setModelHovered(false)}
                     className="group/hero relative cursor-pointer transition-transform duration-700 ease-out will-change-transform hover:scale-[1.02]"
                   >
-                    <img
+                    <Image
                       src="/model-hero-cutout.webp"
                       alt="StylAIze fashion model in a complete stylish outfit"
+                      width={1200}
+                      height={1800}
+                      sizes="(max-width: 639px) 92vw, (max-width: 1023px) 47vh, 34vw"
+                      quality={90}
+                      priority
                       className="hero-soft-edge block h-[62vh] w-auto max-w-[92vw] object-contain object-bottom sm:h-[70vh] lg:h-[94svh] lg:max-w-[34vw]"
                       style={{
                         filter:
@@ -572,10 +582,15 @@ export function CinematicHero() {
                   </div>
 
                   {/* soft floor reflection — flipped, faded, blended into the ground */}
-                  <img
+                  <Image
                     src="/model-hero-cutout.webp"
                     alt=""
                     aria-hidden
+                    width={1200}
+                    height={1800}
+                    sizes="(max-width: 639px) 92vw, (max-width: 1023px) 47vh, 34vw"
+                    quality={90}
+                    loading="lazy"
                     className="pointer-events-none absolute left-0 top-full block h-[62vh] w-auto max-w-[92vw] -scale-y-100 select-none [mask-image:linear-gradient(180deg,black_8%,transparent_60%)] sm:h-[70vh] lg:h-[94svh] lg:max-w-[34vw]"
                     style={{
                       mixBlendMode: "screen",

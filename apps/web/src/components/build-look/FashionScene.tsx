@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useMemo } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import { FashionModel } from "./FashionModel";
@@ -14,6 +14,20 @@ interface FashionSceneProps {
   autoRotate: boolean;
   items: OutfitItem[];
   onHotspotClick: (itemId: string) => void;
+}
+
+function useFinePointer(): boolean {
+  const [isFine, setIsFine] = useState(false);
+
+  useEffect(() => {
+    const query = window.matchMedia("(pointer: fine)");
+    const update = () => setIsFine(query.matches);
+    update();
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
+
+  return isFine;
 }
 
 function LoadingFallback() {
@@ -38,6 +52,7 @@ function SceneContent({
   items,
   onHotspotClick,
 }: Omit<FashionSceneProps, "activeStage">) {
+  const isFinePointer = useFinePointer();
   const visibleItems = useMemo(() => {
     if (highlightCategories.length === 0) return items;
     return items.filter((item) =>
@@ -76,18 +91,20 @@ function SceneContent({
         />
       ))}
 
-      <OrbitControls
-        autoRotate={autoRotate}
-        autoRotateSpeed={0.8}
-        enablePan={false}
-        enableZoom={true}
-        minPolarAngle={Math.PI / 4}
-        maxPolarAngle={Math.PI / 1.5}
-        minAzimuthAngle={-Math.PI / 4}
-        maxAzimuthAngle={Math.PI / 4}
-        minDistance={3}
-        maxDistance={8}
-      />
+      {isFinePointer && (
+        <OrbitControls
+          autoRotate={autoRotate}
+          autoRotateSpeed={0.8}
+          enablePan={false}
+          enableZoom={false}
+          minPolarAngle={Math.PI / 4}
+          maxPolarAngle={Math.PI / 1.5}
+          minAzimuthAngle={-Math.PI / 4}
+          maxAzimuthAngle={Math.PI / 4}
+          minDistance={3}
+          maxDistance={8}
+        />
+      )}
     </>
   );
 }
@@ -105,10 +122,10 @@ export function FashionScene({
     <div className="relative h-full w-full">
       <Canvas
         shadows
-        dpr={[1, 1.5]}
-        gl={{ antialias: true, alpha: true }}
+        dpr={[1, 1.25]}
+        gl={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
         camera={{ fov: 40, position: [0, 1.5, 5], near: 0.1, far: 100 }}
-        style={{ background: "transparent" }}
+        style={{ background: "transparent", touchAction: "pan-y" }}
       >
         <Suspense fallback={<LoadingFallback />}>
           <SceneContent

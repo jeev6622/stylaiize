@@ -19,7 +19,7 @@ export function ScrollProgress({
     : 0;
 
   return (
-    <div className="fixed right-6 top-1/2 z-50 -translate-y-1/2 md:right-8">
+    <div className="pointer-events-none fixed right-6 top-1/2 z-50 -translate-y-1/2 md:right-8">
       <div className="relative flex flex-col items-center gap-0">
         <div className="absolute left-1/2 top-0 h-full w-0.5 -translate-x-1/2 bg-white/10" />
         <motion.div
@@ -42,7 +42,7 @@ export function ScrollProgress({
             return (
               <div
                 key={i}
-                className="group relative flex items-center"
+                className="group pointer-events-auto relative flex items-center"
                 style={{
                   position: "absolute",
                   top: `${totalStages > 1 ? (i / (totalStages - 1)) * 100 : 50}%`,

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { EditorialLink, Eyebrow, Reveal } from "./ui";
 
 const PRODUCTS = [
@@ -29,10 +30,13 @@ export function SmartSplit() {
         <Reveal delay={0.12}>
           <div className="mt-10 grid max-w-md grid-cols-4 gap-3">
             {PRODUCTS.map((p) => (
-              <img
+              <Image
                 key={p.src}
                 src={p.src}
                 alt={p.alt}
+                width={500}
+                height={600}
+                sizes="(max-width: 767px) 22vw, 100px"
                 loading="lazy"
                 className="aspect-[5/6] w-full rounded-xl object-cover"
               />
@@ -48,11 +52,14 @@ export function SmartSplit() {
       </div>
 
       <div className="relative min-h-[520px] overflow-hidden bg-[#230706]">
-        <img
+        <Image
           src="/fashion-model-01.jpg"
           alt="StylAIze virtual try-on on a fashion model"
+          fill
+          sizes="(max-width: 767px) 100vw, 50vw"
+          quality={90}
           loading="lazy"
-          className="absolute inset-0 h-full w-full object-cover object-[50%_20%]"
+          className="object-cover object-[50%_20%]"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-[#230706] via-[#230706]/75 to-[#230706]/20" />
 

@@ -61,6 +61,19 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+let sessionRestore: Promise<AuthResultPayload> | null = null;
+
+function restoreSession(refreshToken: string): Promise<AuthResultPayload> {
+  if (!sessionRestore) {
+    sessionRestore = apiClient.post<AuthResultPayload>(
+      API_ENDPOINTS.auth.refresh,
+      { refreshToken },
+      { skipAuth: true },
+    );
+  }
+  return sessionRestore;
+}
+
 async function hydrateUser(accessToken: string): Promise<User | null> {
   try {
     const data = await apiClient.get<{ user: User }>(API_ENDPOINTS.auth.me, {
@@ -87,11 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
       try {
-        const data = await apiClient.post<AuthResultPayload>(
-          API_ENDPOINTS.auth.refresh,
-          { refreshToken },
-          { skipAuth: true },
-        );
+        const data = await restoreSession(refreshToken);
         if (cancelled) return;
         setTokens(data.accessToken, data.refreshToken);
         setUser(data.user);
@@ -140,6 +149,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Token may already be invalid; clearing locally is what matters.
     }
     clearTokens();
+    sessionRestore = null;
     setUser(null);
     setStatus("unauthenticated");
   }, []);

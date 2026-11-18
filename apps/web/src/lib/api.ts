@@ -70,7 +70,22 @@ interface RequestOptions extends Omit<RequestInit, "body"> {
   timeoutMs?: number;
 }
 
-export async function api<T>(
+const inFlightRequests = new Map<string, Promise<unknown>>();
+
+function safeRequestKey(
+  method: string,
+  path: string,
+  headers: Headers,
+): string {
+  return [
+    method,
+    path,
+    headers.get("authorization") ?? "",
+    headers.get("content-type") ?? "",
+  ].join("|");
+}
+
+async function performRequest<T>(
   path: string,
   options: RequestOptions = {},
 ): Promise<T> {
@@ -147,6 +162,42 @@ export async function api<T>(
   } finally {
     clearTimeout(timeout);
   }
+}
+
+/**
+ * Same GET/HEAD request made twice in one render (StrictMode, two effects,
+ * duplicated deep-link handling) shares a single network call.
+ */
+export async function api<T>(
+  path: string,
+  options: RequestOptions = {},
+): Promise<T> {
+  const method = (options.method ?? "GET").toUpperCase();
+  if (method !== "GET" && method !== "HEAD") {
+    return performRequest<T>(path, options);
+  }
+
+  const headers = new Headers(options.headers);
+  headers.set("Accept", "application/json");
+  if (options.body !== undefined && !(options.body instanceof FormData)) {
+    headers.set("Content-Type", "application/json");
+  }
+  const token = getAccessToken();
+  if (token && !options.skipAuth) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+
+  const key = safeRequestKey(method, path, headers);
+  const existing = inFlightRequests.get(key);
+  if (existing) return existing as Promise<T>;
+
+  const request = performRequest<T>(path, options);
+  inFlightRequests.set(key, request);
+  const cleanup = () => {
+    if (inFlightRequests.get(key) === request) inFlightRequests.delete(key);
+  };
+  void request.then(cleanup, cleanup);
+  return request;
 }
 
 export const apiClient = {

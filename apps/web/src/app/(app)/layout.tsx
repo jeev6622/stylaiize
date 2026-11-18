@@ -29,6 +29,7 @@ import { useAuth } from "@/lib/auth";
 export const APP_SCROLL_CONTAINER_ID = "app-main-content";
 
 const PREFETCH_ROUTES = new Set([
+  "/dashboard",
   "/chat",
   "/build-look",
   "/outfits",
@@ -77,8 +78,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
         <nav className="flex-1 overflow-y-auto px-3 py-4">
           <Link
-            href="/chat"
-            prefetch={shouldPrefetch("/chat")}
+            href="/dashboard"
+            prefetch={shouldPrefetch("/dashboard")}
             className="mb-4 flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-secondary"
           >
             <LayoutDashboard className="h-4 w-4" />

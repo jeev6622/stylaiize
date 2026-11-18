@@ -376,7 +376,7 @@ export default function BuildLookPage() {
         <BackgroundEffects activeStage={0} />
         <div className="relative z-10 mx-auto flex min-h-full max-w-2xl flex-col justify-center px-6 py-16">
           <Link
-            href="/"
+            href="/dashboard"
             className="mb-6 inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -454,7 +454,7 @@ export default function BuildLookPage() {
               transition={{ duration: 0.6 }}
             >
               <Link
-                href="/"
+                href="/dashboard"
                 className="mb-6 inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
               >
                 <ArrowLeft className="h-4 w-4" />

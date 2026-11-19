@@ -56,7 +56,7 @@ export async function sendBulkNotifications(
   return provider.sendBulk(payloads);
 }
 
-/** Whether push delivery is live (real FCM) or falling back to demo logging. */
+/** Whether push delivery is live (real FCM), demo-only, or unavailable. */
 export function notificationStatus(): { active: boolean; demoMode: boolean } {
   return notificationProviderStatus();
 }

@@ -15,6 +15,7 @@ import { resolveAIProvider, aiProviderStatus, describeProvider } from "@/infrast
 import { AIProviderError } from "@/infrastructure/ai/errors";
 import { extractJson } from "@/infrastructure/ai/http";
 import { logError, logWarn } from "@/utils/logger";
+import type { ZodType, ZodTypeDef } from "zod";
 
 export interface ChatInput {
   messages: AIChatMessage[];
@@ -150,8 +151,12 @@ export class AIService {
   /**
    * Ask the model to produce strict JSON following `outputSchema`.
    * Used by every structured feature (event detection, outfit plans, ...).
+   * When a Zod schema is provided, the parsed JSON is validated against it.
    */
-  async generateJson<T>(prompt: StructuredPrompt): Promise<T> {
+  async generateJson<T>(
+    prompt: StructuredPrompt,
+    schema?: ZodType<T, ZodTypeDef, unknown>,
+  ): Promise<T> {
     const schemaText = JSON.stringify(prompt.outputSchema, null, 2);
     const instruction = [
       prompt.instruction,
@@ -176,6 +181,20 @@ export class AIService {
 
     const res = await withRetry(() => this.provider().chat(request));
     const parsed = extractJson(res.text) as T;
+    if (schema) {
+      const result = schema.safeParse(parsed);
+      if (!result.success) {
+        const issues = result.error.issues
+          .map((issue) => {
+            const path = issue.path.length > 0 ? issue.path.join(".") : "<root>";
+            return `${path}: ${issue.message}`;
+          })
+          .join("; ");
+        logError("AI returned invalid structured output", { task: prompt.task, issues });
+        throw new Error(`AI returned invalid JSON for task "${prompt.task}": ${issues}`);
+      }
+      return result.data;
+    }
     if (Object.keys(parsed ?? {}).length === 0) {
       logError("AI returned non-JSON output for structured task", { task: prompt.task });
       throw new Error(`AI provider returned invalid JSON for task "${prompt.task}".`);

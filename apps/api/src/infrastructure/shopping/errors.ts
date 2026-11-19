@@ -10,8 +10,25 @@ export class ShoppingNotConfiguredError extends AppError {
   constructor() {
     super(
       503,
-      "Live shopping search is not configured. Set SHOPPING_ENABLED=true with SHOPPING_API_URL (and SHOPPING_API_KEY if the provider needs one), or set SHOPPING_PROVIDER=mock to deliberately use the demo catalog.",
+      "Live product search is currently unavailable.",
       { code: "SHOPPING_NOT_CONFIGURED" },
     );
+  }
+}
+
+export class ShoppingUnavailableError extends AppError {
+  constructor() {
+    super(503, "Live product search is currently unavailable.", {
+      code: "SHOPPING_UNAVAILABLE",
+    });
+  }
+}
+
+export class ShoppingAuthenticationError extends Error {
+  readonly provider: string;
+  constructor(providerLabel: string) {
+    super(`${providerLabel} authentication failed.`);
+    this.name = "ShoppingAuthenticationError";
+    this.provider = providerLabel;
   }
 }

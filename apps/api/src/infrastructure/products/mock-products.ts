@@ -1,6 +1,7 @@
 import type { Product } from "@stylaiize/shared";
+import { inferAudience, inferStyleTags } from "../shopping/catalog-attributes";
 
-export const MOCK_PRODUCTS: Product[] = [
+const RAW_MOCK_PRODUCTS: Omit<Product, "audience" | "styleTags">[] = [
   // ── Menswear: Shirts ──
   {
     id: "prod-001",
@@ -776,6 +777,12 @@ export const MOCK_PRODUCTS: Product[] = [
     inStock: false,
   },
 ];
+
+export const MOCK_PRODUCTS: Product[] = RAW_MOCK_PRODUCTS.map((product) => ({
+  ...product,
+  audience: inferAudience(`${product.title} ${product.category}`),
+  styleTags: inferStyleTags(`${product.title} ${product.category}`),
+}));
 
 /**
  * Search mock products with filtering, sorting, and pagination.

@@ -3,7 +3,8 @@ import type { OTPPurpose, OTPRecord } from "@stylaiize/shared";
 import { otpRepository } from "@/infrastructure/repos/otp.repo";
 import { resolveEmailProvider } from "@/infrastructure/email/factory";
 import { hashOTP, verifyOTPCode } from "@/utils/password";
-import { logInfo, logError } from "@/utils/logger";
+import { logInfo, logWarn } from "@/utils/logger";
+import { ServiceUnavailableError } from "@/utils/errors";
 
 const OTP_EXPIRY_MS = 10 * 60 * 1000;
 const MAX_ATTEMPTS = 5;
@@ -53,16 +54,36 @@ export async function generateOTP(input: GenerateOTPInput): Promise<{ target: st
     try {
       const emailProvider = resolveEmailProvider();
       const purposeLabel = purposeLabelMap[input.purpose] ?? "verification";
-      await emailProvider.send({
+      const result = await emailProvider.send({
         to: input.email,
         subject: `Your StylAIze ${purposeLabel} Code`,
         text: `Your ${purposeLabel} code is: ${code}\n\nThis code expires in 10 minutes. Do not share it with anyone.`,
         html: otpEmailHtml(code, purposeLabel),
       });
-      logInfo(`[OTP] Email sent to ${maskEmail(input.email)}`);
+      if (!result.success) {
+        throw new ServiceUnavailableError(
+          result.error ?? "Email delivery is not configured.",
+          "EMAIL_DELIVERY_UNAVAILABLE",
+        );
+      }
+      logInfo(
+        `[OTP] Email ${emailProvider.demoMode ? "demo-only (not delivered)" : "sent"} to ${maskEmail(input.email)}`,
+      );
     } catch (err) {
-      logError("[OTP] Failed to send email", err);
+      if (err instanceof ServiceUnavailableError) throw err;
+      logWarn("[OTP] Failed to send email", {
+        reason: err instanceof Error ? err.message : String(err),
+      });
+      throw new ServiceUnavailableError(
+        "Could not deliver the verification email.",
+        "EMAIL_DELIVERY_UNAVAILABLE",
+      );
     }
+  } else if (input.mobile && input.countryCode) {
+    throw new ServiceUnavailableError(
+      "SMS delivery is not configured. Use an email address for verification.",
+      "SMS_DELIVERY_UNAVAILABLE",
+    );
   }
 
   return { target };

@@ -1,11 +1,14 @@
-import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import request from "supertest";
 import { createApp } from "@/app";
+import { env } from "@/config/env";
 import { registerDemoUserRepository } from "@/infrastructure/repos/user.repo";
 import { InMemoryUserRepository } from "@/infrastructure/repos/memory/user.memory.repo";
 import { registerDemoPriceAlertRepository } from "@/infrastructure/repos/price-alert.repo";
 import { InMemoryPriceAlertRepository } from "@/infrastructure/repos/memory/price-alert.memory.repo";
 import { MockNotificationProvider } from "@/infrastructure/notifications/mock-notification.provider";
+import { resetNotificationProvider } from "@/infrastructure/notifications/factory";
+import { resetShoppingProvider } from "@/infrastructure/shopping/factory";
 import { signAccessToken } from "@/utils/jwt";
 
 /**
@@ -24,10 +27,23 @@ let alertRepository: InMemoryPriceAlertRepository;
 let token: string;
 let userId: string;
 let userCounter = 0;
+const originalShoppingProvider = env.SHOPPING_PROVIDER;
+const originalDemoMode = env.ALLOW_DEMO_MODE;
 
 beforeAll(() => {
+  env.SHOPPING_PROVIDER = "mock";
+  env.ALLOW_DEMO_MODE = true;
+  resetShoppingProvider();
+  resetNotificationProvider();
   userRepository = new InMemoryUserRepository();
   registerDemoUserRepository(userRepository);
+});
+
+afterAll(() => {
+  env.SHOPPING_PROVIDER = originalShoppingProvider;
+  env.ALLOW_DEMO_MODE = originalDemoMode;
+  resetShoppingProvider();
+  resetNotificationProvider();
 });
 
 beforeEach(async () => {

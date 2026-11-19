@@ -1,4 +1,4 @@
-import type { AlertChannel, CalendarEvent, Conversation, EventCategory, FashionMemory, GroomingPlan, OTPRecord, OutfitCategory, OutfitItem, OutfitScores, PackingList, PriceAlert, PriceAlertCondition, RefreshTokenRecord, SavedOutfit, SavedOutfitSource, TryOnResultRecord, User, VTONProvider, WardrobeItem, WardrobeCategory } from "@stylaiize/shared";
+import type { AlertChannel, CalendarEvent, Conversation, EventCategory, FashionMemory, GroomingPlan, OTPRecord, OutfitCategory, OutfitItem, OutfitScores, PackingList, PriceAlert, PriceAlertCondition, RefreshTokenRecord, SavedOutfit, SavedOutfitSource, ShopAudience, TryOnResultRecord, User, VTONProvider, WardrobeItem, WardrobeCategory } from "@stylaiize/shared";
 
 export interface CreateUserInput {
   name: string;
@@ -126,6 +126,7 @@ export interface CreateSavedOutfitInput {
   userId: string;
   name: string;
   category: OutfitCategory;
+  audience?: ShopAudience;
   occasion?: string | null;
   style?: string | null;
   colors?: string[];
@@ -143,7 +144,7 @@ export interface SavedOutfitRepository {
   create(input: CreateSavedOutfitInput): Promise<SavedOutfit>;
   findById(id: string): Promise<SavedOutfit | null>;
   findByUserId(userId: string): Promise<SavedOutfit[]>;
-  update(id: string, patch: Partial<Pick<SavedOutfit, "name" | "category" | "occasion" | "style" | "colors" | "budget" | "items" | "scores" | "totalCost" | "imageUrl" | "explanation" | "grooming">>): Promise<SavedOutfit | null>;
+  update(id: string, patch: Partial<Pick<SavedOutfit, "name" | "category" | "audience" | "occasion" | "style" | "colors" | "budget" | "items" | "scores" | "totalCost" | "imageUrl" | "explanation" | "grooming">>): Promise<SavedOutfit | null>;
   delete(id: string): Promise<void>;
   countByUserId(userId: string): Promise<number>;
 }

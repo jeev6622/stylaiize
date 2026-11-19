@@ -94,6 +94,7 @@ describe("POST /api/v1/outfits", () => {
     expect(res.status).toBe(201);
     expect(res.body.data.outfit.id).toBeTruthy();
     expect(res.body.data.outfit.name).toBe("Boardroom ready");
+    expect(res.body.data.outfit.audience).toBe("all");
     expect(res.body.data.outfit.source).toBe("manual");
   });
 
@@ -126,6 +127,7 @@ describe("POST /api/v1/outfits", () => {
       .send({
         name: "Build Your Look — Classic · Wedding",
         category: "smart_casual",
+        audience: "men",
         occasion: "Wedding",
         style: "Classic",
         colors: ["#ffffff"],
@@ -144,6 +146,7 @@ describe("POST /api/v1/outfits", () => {
       });
 
     expect(res.status).toBe(201);
+    expect(res.body.data.outfit.audience).toBe("men");
     expect(res.body.data.outfit.source).toBe("build_your_look");
     expect(res.body.data.outfit.items.map((i: { type: string }) => i.type)).toEqual([
       "top",

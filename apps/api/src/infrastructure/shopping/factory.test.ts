@@ -7,8 +7,6 @@ import {
 } from "@/infrastructure/shopping/factory";
 import { ShoppingNotConfiguredError } from "@/infrastructure/shopping/errors";
 
-// `env` is a parsed in-process object; mutating SHOPPING_PROVIDER exercises
-// each resolution branch in a fresh vitest worker (module state is per-file).
 const original = env.SHOPPING_PROVIDER;
 
 afterEach(() => {
@@ -22,6 +20,7 @@ describe("Shopping provider resolution", () => {
     const provider = resolveShoppingProvider();
     expect(provider.demoMode).toBe(true);
     expect(shoppingProviderStatus().demoMode).toBe(true);
+    expect(shoppingProviderStatus().activeProviderId).toBe("mock");
   });
 
   it("refuses to fall back to demo results when the live catalog is pinned but unconfigured", () => {
@@ -29,17 +28,29 @@ describe("Shopping provider resolution", () => {
     env.SHOPPING_PROVIDER = "real";
     resetShoppingProvider();
     expect(() => resolveShoppingProvider()).toThrow(ShoppingNotConfiguredError);
-    // Status stays honest: it reports "none" rather than a healthy mock.
     expect(shoppingProviderStatus().active).toBe("none");
+    expect(shoppingProviderStatus().activeProviderId).toBeNull();
     expect(shoppingProviderStatus().configured).toBe(false);
   });
 
-  it("falls back to the demo catalog when nothing is pinned, and marks it as demo", () => {
+  it("uses the free live catalog when nothing is pinned", () => {
     env.SHOPPING_ENABLED = false;
     env.SHOPPING_PROVIDER = "";
     resetShoppingProvider();
     const provider = resolveShoppingProvider();
-    expect(provider.demoMode).toBe(true);
-    expect(shoppingProviderStatus().active).toBe("mock");
+    expect(provider.isConfigured).toBe(true);
+    expect(provider.demoMode).toBe(false);
+    expect(shoppingProviderStatus().active).toBe("real");
+    expect(shoppingProviderStatus().activeProviderId).toBe("livostyle");
+    expect(shoppingProviderStatus().configured).toBe(true);
+  });
+
+  it("uses the free live catalog when explicitly pinned to livostyle", () => {
+    env.SHOPPING_PROVIDER = "livostyle";
+    resetShoppingProvider();
+    const provider = resolveShoppingProvider();
+    expect(provider.isConfigured).toBe(true);
+    expect(provider.demoMode).toBe(false);
+    expect(shoppingProviderStatus().activeProviderId).toBe("livostyle");
   });
 });

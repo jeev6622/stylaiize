@@ -1,6 +1,8 @@
 import { wardrobeRepository } from "@/infrastructure/repos/wardrobe.repo";
 import type { CreateWardrobeItemInput } from "@/domain/ports/repositories";
+import { WARDROBE_CATEGORIES } from "@stylaiize/shared";
 import type { WardrobeItem, WardrobeCategory, Wardrobe } from "@stylaiize/shared";
+import { z } from "zod";
 import { NotFoundError } from "@/utils/errors";
 import { aiService } from "@/application/services/ai.service";
 import {
@@ -217,38 +219,50 @@ export async function attachImage(
  * The photo is uploaded first so the user can see it in the draft, so a failed
  * AI call has to remove the asset it just created.
  */
+const WARDROBE_CATEGORY_ENUM = [...WARDROBE_CATEGORIES] as [
+  WardrobeCategory,
+  ...WardrobeCategory[],
+];
+
+const categorizeSchema = z
+  .object({
+    name: z.string().trim().min(1).max(160),
+    category: z.enum(WARDROBE_CATEGORY_ENUM),
+    color: z.string().trim().min(1).max(80),
+    brand: z.string().trim().min(1).max(120).nullable().default(null),
+    tags: z.array(z.string().trim().min(1).max(40)).max(10).default([]),
+    confidence: z.number().finite().min(0).max(100).default(0),
+  })
+  .strict();
+
 export async function categorizeImage(
   userId: string,
   input: { buffer: Buffer; mimeType: string; filename: string },
 ): Promise<CategorizeResult> {
   const { imageUrl, imageUploadToken } = await attachImage(userId, input);
 
-  let raw: {
-    name?: string;
-    category?: string;
-    color?: string;
-    brand?: string | null;
-    tags?: string[];
-    confidence?: number;
-  };
+  let raw: z.infer<typeof categorizeSchema>;
   try {
-    raw = await aiService.generateJson({
-      task: "analyze_photo",
-      instruction:
-        "Look at this photo of a single garment and identify it. Return the product name, " +
-        "the most specific wardrobe category, its dominant color as a common color name, the " +
-        "brand if the label is legible (otherwise null), and up to 5 useful style tags.",
-      context: `Valid categories: ${WARDROBE_CATEGORY_HINT}.`,
-      outputSchema: {
-        name: "string, the garment's product name",
-        category: `one of ${WARDROBE_CATEGORY_HINT}`,
-        color: "string, dominant colour name",
-        brand: "string|null",
-        tags: ["string"],
-        confidence: "number 0-100",
+    raw = await aiService.generateJson(
+      {
+        task: "analyze_photo",
+        instruction:
+          "Look at this photo of a single garment and identify it. Return the product name, " +
+          "the most specific wardrobe category, its dominant color as a common color name, the " +
+          "brand if the label is legible (otherwise null), and up to 5 useful style tags.",
+        context: `Valid categories: ${WARDROBE_CATEGORY_HINT}.`,
+        outputSchema: {
+          name: "string, the garment's product name",
+          category: `one of ${WARDROBE_CATEGORY_HINT}`,
+          color: "string, dominant colour name",
+          brand: "string|null",
+          tags: ["string"],
+          confidence: "number 0-100",
+        },
+        images: [{ mimeType: input.mimeType, data: input.buffer.toString("base64") }],
       },
-      images: [{ mimeType: input.mimeType, data: input.buffer.toString("base64") }],
-    });
+      categorizeSchema,
+    );
   } catch (err) {
     // The item was never created, so the image would be unreferenced.
     await deleteImage(resolveUploadToken(imageUploadToken, userId).publicId);

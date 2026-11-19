@@ -1,16 +1,19 @@
 import nodemailer from "nodemailer";
 import type { Transporter } from "nodemailer";
 import { env } from "@/config/env";
-import { isSmtpConfigured } from "@/config/features";
 import { logError } from "@/utils/logger";
-import type { EmailInput, EmailProviderPort } from "./email.interface";
+import type {
+  EmailInput,
+  EmailProviderPort,
+  EmailSendResult,
+} from "./email.interface";
 
 export class SmtpEmailProvider implements EmailProviderPort {
   readonly demoMode = false;
   private transporter: Transporter | null = null;
 
   get isConfigured(): boolean {
-    return isSmtpConfigured;
+    return env.SMTP_HOST.trim().length > 0;
   }
 
   private getTransporter(): Transporter | null {
@@ -29,9 +32,11 @@ export class SmtpEmailProvider implements EmailProviderPort {
     return this.transporter;
   }
 
-  async send(input: EmailInput): Promise<void> {
+  async send(input: EmailInput): Promise<EmailSendResult> {
     const transporter = this.getTransporter();
-    if (!transporter) return;
+    if (!transporter) {
+      return { success: false, error: "SMTP is not configured." };
+    }
     try {
       await transporter.sendMail({
         from: env.SMTP_FROM,
@@ -41,9 +46,10 @@ export class SmtpEmailProvider implements EmailProviderPort {
         html: input.html,
         replyTo: input.replyTo,
       });
+      return { success: true };
     } catch (err) {
       logError("SMTP send failed", err);
-      throw err;
+      return { success: false, error: err instanceof Error ? err.message : String(err) };
     }
   }
 }

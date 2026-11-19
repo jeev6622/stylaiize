@@ -1,16 +1,21 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback, useMemo } from "react";
-import dynamic from "next/dynamic";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, Sparkles, Bookmark, ShoppingBag, Plus, RotateCcw } from "lucide-react";
+import { motion } from "framer-motion";
+import { ArrowLeft, Sparkles, Plus, RotateCcw, Search } from "lucide-react";
 import { toast } from "sonner";
 import type {
+  BuildLookAudience,
+  BuildLookShopResult,
   BuildYourLookData,
+  CompleteOutfitImageResponse,
+  CompleteOutfitImageStatus,
   GroomingPlan,
   OutfitItemType,
+  Product,
+  ShopAudience,
   StyleProfile,
 } from "@stylaiize/shared";
 import { Button } from "@/components/ui/button";
@@ -21,15 +26,44 @@ import {
   BUILD_LOOK_CATEGORY_TO_ITEM_TYPE,
 } from "@stylaiize/shared";
 import { toOutfitData, toApiItems } from "@/lib/build-look";
-import type { OutfitData, ScrollStage } from "@/components/build-look/types";
+import {
+  buildCompleteOutfitImageRequestPayload,
+  buildItemShoppingQueries,
+  buildLookShopFingerprint,
+  type BuildLookContext,
+} from "@/lib/build-look-shopping";
+import {
+  readAvatarPreference,
+  resolveAvatarSelection,
+  writeAvatarPreference,
+} from "@/lib/avatar-selection";
+import {
+  clearBuildLookSession,
+  readBuildLookSession,
+  writeBuildLookSession,
+} from "@/lib/build-look-session";
+import {
+  buildLookProductSearchContext,
+  buildProductSearchHref,
+  getAudienceProviderNotice,
+} from "@/lib/product-search";
+import {
+  buildOutfitPieces,
+  findOutfitPiece,
+} from "@/lib/outfit-pieces";
+import type { OutfitData } from "@/components/build-look/types";
+import type { FashionModelId } from "@/components/build-look/fashion-model-catalog";
 import { BackgroundEffects } from "@/components/build-look/BackgroundEffects";
-import { ScrollProgress } from "@/components/build-look/ScrollProgress";
-import { ScrollCard } from "@/components/build-look/ScrollCard";
-import { OutfitOverview } from "@/components/build-look/OutfitOverview";
-import { ProductInfoCard } from "@/components/build-look/ProductInfoCard";
-import { AIAnalysis } from "@/components/build-look/AIAnalysis";
-import { GroomingResults } from "@/components/build-look/GroomingResults";
-import { ShoppingSummary } from "@/components/build-look/ShoppingSummary";
+import { CompleteOutfitImage } from "@/components/build-look/CompleteOutfitImage";
+import { OutfitStudio } from "@/components/build-look/OutfitStudio";
+import { OutfitSummaryPanel } from "@/components/build-look/OutfitSummaryPanel";
+import { OutfitPieceBreakdown } from "@/components/build-look/OutfitPieceBreakdown";
+import { OutfitShoppingList } from "@/components/build-look/OutfitShoppingList";
+import {
+  OutfitPieceRail,
+  OutfitProductPanel,
+} from "@/components/build-look/OutfitPieceRail";
+import { SaveShareActions } from "@/components/build-look/SaveShareActions";
 import { StyleProfileCard } from "@/components/build-look/StyleProfileCard";
 import { StyleSelector } from "@/components/build-look/StyleSelector";
 import { BudgetSelector } from "@/components/build-look/BudgetSelector";
@@ -45,118 +79,34 @@ function getScrollContainer(): HTMLElement | null {
   return document.getElementById(SCROLL_CONTAINER_ID);
 }
 
-const FashionScene = dynamic(
-  () =>
-    import("@/components/build-look/FashionScene").then(
-      (module) => module.FashionScene,
-    ),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="relative h-full w-full overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(139,92,246,0.12),transparent_65%)]" />
-        <div className="absolute bottom-[15%] left-1/2 h-40 w-24 -translate-x-1/2 rounded-t-[3rem] bg-gradient-to-b from-white/[0.06] to-transparent blur-sm" />
-      </div>
-    ),
-  },
-);
+function parseColors(value: string): string[] {
+  return value
+    .split(",")
+    .map((color) => color.trim())
+    .filter(Boolean)
+    .slice(0, 8);
+}
 
-const CATEGORY_LABELS: Record<string, string> = {
-  upperwear: "Upperwear",
-  lowerwear: "Lowerwear",
-  footwear: "Footwear",
-  accessories: "Accessories",
-};
+function selectedAudience(
+  value: ShopAudience | BuildLookAudience | "" | null | undefined,
+): BuildLookAudience | null {
+  return value === "men" || value === "women" || value === "unisex" ? value : null;
+}
 
-/**
- * Build Your Look items carry a slot (`upperwear`, `lowerwear`, ...) but the
- * saved-outfit API validates `items[].type` against the shared
- * `OUTFIT_ITEM_TYPES` vocabulary. Translate through the shared map and fall
- * back to "accessory" for anything unexpected rather than sending a value the
- * API would reject.
- */
+
+
 function toOutfitItemType(category: string): OutfitItemType {
   return BUILD_LOOK_CATEGORY_TO_ITEM_TYPE[
     category as (typeof BUILD_LOOK_CATEGORIES)[number]
   ] ?? "accessory";
 }
 
-const CATEGORY_SUBTITLES: Record<string, string> = {
-  upperwear: "UPPERWEAR",
-  lowerwear: "LOWERWEAR",
-  footwear: "FOOTWEAR",
-  accessories: "ACCESSORIES",
-};
-
-/**
- * Builds one scroll stage per real item, then a shopping stage. Derived from
- * the API response so a 4-piece and a 7-piece look each get the right number
- * of sections.
- */
-function buildStages(
-  look: OutfitData,
-  grooming: GroomingPlan | null,
-): ScrollStage[] {
-  const stages: ScrollStage[] = [
-    {
-      id: 0,
-      kind: "overview",
-      title: "Complete Look",
-      subtitle: "AI RECOMMENDED LOOK",
-      label: "Overview",
-      highlightCategories: [],
-    },
-    {
-      id: 1,
-      kind: "analysis",
-      title: "Style Match",
-      subtitle: "01 / AI ANALYSIS",
-      label: "Analysis",
-      highlightCategories: [],
-    },
-  ];
-
-  look.items.forEach((item, i) => {
-    stages.push({
-      id: i + 2,
-      kind: "item",
-      itemIndex: i,
-      title: item.name,
-      subtitle: `${String(i + 1).padStart(2, "0")} / ${CATEGORY_SUBTITLES[item.category] ?? item.category.toUpperCase()}`,
-      label: CATEGORY_LABELS[item.category] ?? item.category,
-      description: item.description || item.subtitle,
-      highlightCategories: [item.category],
-    });
-  });
-
-  if (grooming) {
-    stages.push({
-      id: stages.length,
-      kind: "grooming",
-      title: "Grooming",
-      subtitle: "FINISHING TOUCHES",
-      label: "Grooming",
-      highlightCategories: [],
-    });
-  }
-
-  stages.push({
-    id: stages.length,
-    kind: "shopping",
-    title: "Shopping",
-    subtitle: "YOUR LOOK",
-    label: "Shop",
-    highlightCategories: [],
-  });
-
-  return stages;
-}
 
 export default function BuildLookPage() {
   const router = useRouter();
-  const [activeStage, setActiveStage] = useState(0);
   const [activeItemId, setActiveItemId] = useState<string | null>(null);
-  const [showReducedMotion, setShowReducedMotion] = useState(false);
+  const [autoRotateEnabled, setAutoRotateEnabled] = useState(false);
+  const [avatarPreference, setAvatarPreference] = useState<FashionModelId | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
   const [form, setForm] = useState<BuildLookFormState>(EMPTY_BUILD_LOOK_FORM);
@@ -167,17 +117,46 @@ export default function BuildLookPage() {
   const [isMutating, setIsMutating] = useState(false);
   const [replacingId, setReplacingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  const sectionsRef = useRef<(HTMLElement | null)[]>([]);
+  const [shopResult, setShopResult] = useState<BuildLookShopResult | null>(null);
+  const [shopError, setShopError] = useState<string | null>(null);
+  const [isShopping, setIsShopping] = useState(false);
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  const [imageStatus, setImageStatus] = useState<CompleteOutfitImageStatus | null>(null);
+  const [imageMessage, setImageMessage] = useState<string | null>(null);
+  const shopRequestRef = useRef(0);
+  const shopFingerprintRef = useRef<string | null>(null);
+  const imageRequestRef = useRef(0);
+  const imageFingerprintRef = useRef<string | null>(null);
 
   const outfit: OutfitData | null = useMemo(
     () => (look ? toOutfitData(look) : null),
     [look],
   );
-  const stages: ScrollStage[] = useMemo(
-    () => (outfit ? buildStages(outfit, grooming) : []),
-    [outfit, grooming],
+
+  const avatarSelection = useMemo(
+    () =>
+      resolveAvatarSelection({
+        formAudience: selectedAudience(form.audience) ?? undefined,
+        generatedAudience: look?.audience ?? null,
+        preferredModelId: avatarPreference,
+      }),
+    [avatarPreference, form.audience, look?.audience],
   );
+
+  const shopAudience: ShopAudience =
+    selectedAudience(look?.audience ?? form.audience) ?? "all";
+
+  const outfitPieces = useMemo(
+    () => (outfit ? buildOutfitPieces(outfit.items, shopResult, shopAudience) : []),
+    [outfit, shopAudience, shopResult],
+  );
+
+  const activePiece = useMemo(
+    () => findOutfitPiece(outfitPieces, activeItemId),
+    [activeItemId, outfitPieces],
+  );
+
+  const selectedSlot = activePiece?.slot ?? null;
 
   const colors = useMemo(
     () =>
@@ -189,10 +168,25 @@ export default function BuildLookPage() {
     [form.colors],
   );
 
-  /** Shared payload for generate / replace / add — the API requires the brief each time. */
-  const brief = useCallback(
+  const lookContext = useMemo<BuildLookContext>(
     () => ({
-      eventName: form.eventName.trim(),
+      audience: shopAudience,
+      occasion: form.occasion.trim(),
+      style: form.style,
+      budget: form.budget,
+      colors,
+      fit: form.fit.trim(),
+    }),
+    [colors, form.budget, form.fit, form.occasion, form.style, shopAudience],
+  );
+
+  const promptBrief = useCallback(() => {
+    const audience = selectedAudience(look?.audience ?? form.audience);
+    const eventName = form.eventName.trim();
+    if (!audience || eventName.length < 2) return null;
+    return {
+      eventName,
+      audience,
       ...(form.occasion.trim() ? { occasion: form.occasion.trim() } : {}),
       ...(form.dressCode.trim() ? { dressCode: form.dressCode.trim() } : {}),
       style: form.style,
@@ -201,56 +195,182 @@ export default function BuildLookPage() {
       ...(form.fit.trim() ? { fit: form.fit.trim() } : {}),
       ...(form.brand.trim() ? { brand: form.brand.trim() } : {}),
       ...(form.season.trim() ? { season: form.season.trim() } : {}),
+    };
+  }, [colors, form, look?.audience]);
+
+  const generateBrief = useCallback(() => {
+    const brief = promptBrief();
+    if (!brief) return null;
+    return {
+      ...brief,
       includeGrooming: form.includeGrooming,
       ...(styleProfile ? { styleProfile } : {}),
-    }),
-    [colors, form, styleProfile],
-  );
+    };
+  }, [form.includeGrooming, promptBrief, styleProfile]);
 
   const messageFor = (err: unknown, fallback: string) => {
     if (err instanceof ApiError) {
       if (err.code === "AI_NOT_CONFIGURED") return err.message;
-      return err.message || fallback;
+      const firstFieldError = err.fieldErrors ? Object.values(err.fieldErrors)[0]?.[0] : null;
+      return firstFieldError || err.message || fallback;
     }
     return err instanceof Error && err.message ? err.message : fallback;
   };
 
+  const runShop = useCallback(
+    async (
+      targetLook: BuildYourLookData,
+      context: BuildLookContext,
+      options: { force?: boolean } = {},
+    ): Promise<BuildLookShopResult | null> => {
+      if (targetLook.items.length === 0) return null;
+      const fingerprint = buildLookShopFingerprint(targetLook, context);
+      if (!options.force && shopFingerprintRef.current === fingerprint) return null;
+      const requestId = ++shopRequestRef.current;
+      shopFingerprintRef.current = fingerprint;
+      setIsShopping(true);
+      setShopError(null);
+      setShopResult(null);
+      try {
+        const queries = buildItemShoppingQueries(targetLook, context);
+        const result = await apiClient.post<BuildLookShopResult>(
+          API_ENDPOINTS.buildYourLook.shop,
+          {
+            audience: context.audience,
+            occasion: context.occasion || targetLook.eventName,
+            style: context.style,
+            budget: context.budget,
+            items: targetLook.items.map((item, index) => ({
+              itemId: item.id,
+              name: item.name,
+              category: item.category,
+              color: item.color || null,
+              brand: item.brand || null,
+              size: item.size || null,
+              audience: context.audience,
+              style: context.style,
+              query: queries[index],
+            })),
+          },
+          { timeoutMs: 120_000 },
+        );
+        if (requestId !== shopRequestRef.current) return null;
+        setShopResult(result);
+        return result;
+      } catch (err) {
+        if (requestId !== shopRequestRef.current) return null;
+        setShopError(
+          err instanceof Error && err.message
+            ? err.message
+            : "Live product search is currently unavailable.",
+        );
+        return null;
+      } finally {
+        if (requestId === shopRequestRef.current) setIsShopping(false);
+      }
+    },
+    [],
+  );
+
+  const runImage = useCallback(
+    async (
+      targetLook: BuildYourLookData,
+      context: BuildLookContext,
+      selectedShopResult?: BuildLookShopResult | null,
+      options: { force?: boolean } = {},
+    ) => {
+      if (targetLook.items.length === 0) return;
+      const fingerprint = buildLookShopFingerprint(targetLook, context);
+      if (!options.force && imageFingerprintRef.current === fingerprint) return;
+      const requestId = ++imageRequestRef.current;
+      imageFingerprintRef.current = fingerprint;
+      setIsGeneratingImage(true);
+      setImageStatus(null);
+      setImageMessage(null);
+      try {
+        const result = await apiClient.post<CompleteOutfitImageResponse>(
+          API_ENDPOINTS.buildYourLook.completeOutfitImage,
+          buildCompleteOutfitImageRequestPayload(targetLook, context, selectedShopResult),
+          { timeoutMs: 120_000 },
+        );
+        if (requestId !== imageRequestRef.current) return;
+        const generatedImage = result.completeOutfitImage ?? result.image ?? null;
+        setLook((current) =>
+          current ? { ...current, completeOutfitImage: generatedImage } : current,
+        );
+        setImageStatus(result.status === "success" && !generatedImage ? "error" : result.status);
+        setImageMessage(result.message ?? null);
+      } catch (err) {
+        if (requestId !== imageRequestRef.current) return;
+        setImageStatus("error");
+        setImageMessage(
+          err instanceof Error && err.message
+            ? err.message
+            : "Complete-outfit image generation failed.",
+        );
+      } finally {
+        if (requestId === imageRequestRef.current) setIsGeneratingImage(false);
+      }
+    },
+    [],
+  );
+
   const handleGenerate = useCallback(async () => {
+    const brief = generateBrief();
+    if (!brief) {
+      setError("Select who this look is for and enter an event name.");
+      return;
+    }
     setIsGenerating(true);
     setError(null);
     try {
       const res = await apiClient.post<{
         look: BuildYourLookData;
         grooming?: GroomingPlan;
-      }>(
-        API_ENDPOINTS.buildYourLook.generate,
-        brief(),
-        { timeoutMs: 120_000 },
-      );
+      }>(API_ENDPOINTS.buildYourLook.generate, brief, { timeoutMs: 120_000 });
+      const generatedContext: BuildLookContext = {
+        ...lookContext,
+        audience: selectedAudience(res.look.audience) ?? brief.audience,
+      };
       setLook(res.look);
       setGrooming(res.grooming ?? null);
       setActiveItemId(null);
+      setShopResult(null);
+      setShopError(null);
+      setImageStatus(null);
+      setImageMessage(null);
+      shopFingerprintRef.current = null;
+      imageFingerprintRef.current = null;
       toast.success("Your look is ready.");
+      const shop = await runShop(res.look, generatedContext);
+      void runImage(res.look, generatedContext, shop);
     } catch (err) {
       setError(messageFor(err, "Could not build your look. Please try again."));
     } finally {
       setIsGenerating(false);
     }
-  }, [brief]);
+  }, [generateBrief, lookContext, runImage, runShop]);
 
   const handleReplace = useCallback(
     async (itemId: string) => {
       const currentItems = toApiItems(look);
-      if (!currentItems) return;
+      const brief = promptBrief();
+      if (!currentItems || !brief) return;
       setReplacingId(itemId);
       setError(null);
       try {
         const res = await apiClient.post<{ look: BuildYourLookData }>(
           API_ENDPOINTS.buildYourLook.replaceItem,
-          { ...brief(), currentItems, itemId },
+          { ...brief, currentItems, itemId },
           { timeoutMs: 120_000 },
         );
         setLook(res.look);
+        setShopResult(null);
+        setShopError(null);
+        setImageStatus(null);
+        setImageMessage(null);
+        shopFingerprintRef.current = null;
+        imageFingerprintRef.current = null;
         toast.success("Item replaced.");
       } catch (err) {
         setError(messageFor(err, "Could not replace that item."));
@@ -259,21 +379,28 @@ export default function BuildLookPage() {
         setReplacingId(null);
       }
     },
-    [brief, look],
+    [promptBrief, look],
   );
 
   const handleAddItem = useCallback(async () => {
     const currentItems = toApiItems(look);
-    if (!currentItems) return;
+    const brief = promptBrief();
+    if (!currentItems || !brief) return;
     setIsMutating(true);
     setError(null);
     try {
       const res = await apiClient.post<{ look: BuildYourLookData }>(
         API_ENDPOINTS.buildYourLook.addItem,
-        { ...brief(), currentItems },
+        { ...brief, currentItems },
         { timeoutMs: 120_000 },
       );
       setLook(res.look);
+      setShopResult(null);
+      setShopError(null);
+      setImageStatus(null);
+      setImageMessage(null);
+      shopFingerprintRef.current = null;
+      imageFingerprintRef.current = null;
       toast.success("Item added to your look.");
     } catch (err) {
       setError(messageFor(err, "Could not add an item."));
@@ -281,48 +408,73 @@ export default function BuildLookPage() {
     } finally {
       setIsMutating(false);
     }
-  }, [brief, look]);
+  }, [promptBrief, look]);
+
+  const handleShopLook = useCallback(() => {
+    if (!look) return;
+    void runShop(look, lookContext, { force: true });
+  }, [look, lookContext, runShop]);
 
   const handleRegenerate = useCallback(() => {
+    clearBuildLookSession();
     setLook(null);
     setGrooming(null);
-    setActiveStage(0);
     setActiveItemId(null);
+    setShopResult(null);
+    setShopError(null);
+    setImageStatus(null);
+    setImageMessage(null);
+    shopFingerprintRef.current = null;
+    imageFingerprintRef.current = null;
     getScrollContainer()?.scrollTo({ top: 0, behavior: "smooth" });
   }, []);
 
   const handleSaveOutfit = useCallback(async () => {
     if (!outfit) return;
     setIsSaving(true);
+    const productsByItemId = new Map(
+      (shopResult?.matches ?? [])
+        .filter((match) => match.product)
+        .map((match) => [match.itemId, match.product as Product]),
+    );
+    const products = Array.from(productsByItemId.values());
+    const currencies = new Set(products.map((product) => product.currency));
+    const allPriced = products.length === outfit.items.length && currencies.size === 1;
     try {
       await apiClient.post(API_ENDPOINTS.savedOutfits, {
-        name: `Build Your Look — ${form.style} · ${outfit.eventName}`,
+        name: `Build Your Look - ${form.style} - ${outfit.eventName}`,
         category: "smart_casual",
+        audience: shopAudience,
         occasion: outfit.eventName,
         style: form.style,
         colors: [...new Set(outfit.items.map((i) => i.color).filter(Boolean))],
-        budget: outfit.optimizedTotal,
-        items: outfit.items.map((i) => ({
-          type: toOutfitItemType(i.category),
-          name: i.name,
-          brand: i.brand || null,
-          color: i.color,
-          price: i.price,
-          currency: "INR",
-          buyUrl: null,
-          imageUrl: i.imageUrl,
-          reason: i.subtitle,
-        })),
+        budget: outfit.estimatedBudgetInr?.max ?? null,
+        items: outfit.items.map((i) => {
+          const product = productsByItemId.get(i.id) ?? null;
+          return {
+            type: toOutfitItemType(i.category),
+            name: i.name,
+            brand: product?.brand ?? null,
+            color: i.color,
+            price: product?.price ?? null,
+            currency: product?.currency ?? "INR",
+            buyUrl: product?.buyUrl ?? null,
+            imageUrl: product?.imageUrl ?? null,
+            reason: i.description || i.subtitle,
+          };
+        }),
         scores: {
           fashion: outfit.styleMatch,
           eventMatch: outfit.eventMatch,
           comfort: 0,
           budget: 0,
         },
-        totalCost: outfit.optimizedTotal,
-        explanation: `AI-curated ${form.style} look for ${outfit.eventName}.`,
+        totalCost: allPriced
+          ? products.reduce((sum, product) => sum + product.price, 0)
+          : null,
+        explanation: outfit.explanation || `AI-curated ${form.style} styling guidance for ${outfit.eventName}.`,
         ...(grooming ? { grooming } : {}),
-        imageUrl: null,
+        imageUrl: look?.completeOutfitImage?.url ?? null,
         source: "build_your_look",
       });
       toast.success("Outfit saved to your collection.");
@@ -332,43 +484,113 @@ export default function BuildLookPage() {
     } finally {
       setIsSaving(false);
     }
-  }, [form.style, grooming, outfit, router]);
+  }, [form.style, grooming, look?.completeOutfitImage?.url, outfit, router, shopAudience, shopResult]);
+
+  const productSearchHref = useMemo(() => {
+    if (!look) return "/products";
+    return buildProductSearchHref(
+      buildLookProductSearchContext({
+        look,
+        audience: shopAudience,
+        budget: form.budget,
+        occasion: form.occasion,
+        style: form.style,
+        queries: buildItemShoppingQueries(look, lookContext),
+        colors: lookContext.colors,
+      }),
+    );
+  }, [form.budget, form.occasion, form.style, look, lookContext, shopAudience]);
+
+  const shoppingNotice = useMemo(() => {
+    const missingReason = shopResult?.matches.find((match) => !match.product && match.reason)?.reason;
+    return (
+      missingReason ??
+      shopError ??
+      getAudienceProviderNotice(shopResult?.providers, shopAudience)
+    );
+  }, [shopAudience, shopError, shopResult]);
 
   useEffect(() => {
-    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-    setShowReducedMotion(mq.matches);
-    const handler = (e: MediaQueryListEvent) => setShowReducedMotion(e.matches);
-    mq.addEventListener("change", handler);
-    return () => mq.removeEventListener("change", handler);
+    const saved = readBuildLookSession();
+    if (!saved) return;
+    const audience = selectedAudience(saved.look.audience ?? saved.form.audience);
+    if (!audience) return;
+    const restoredForm: BuildLookFormState = { ...saved.form, audience };
+    const restoredContext: BuildLookContext = {
+      audience,
+      occasion: restoredForm.occasion.trim(),
+      style: restoredForm.style,
+      budget: restoredForm.budget,
+      colors: parseColors(restoredForm.colors),
+      fit: restoredForm.fit.trim(),
+    };
+    const fingerprint = buildLookShopFingerprint(saved.look, restoredContext);
+    const matches = saved.shopFingerprint === fingerprint;
+    setForm(restoredForm);
+    setLook(saved.look);
+    setGrooming(saved.grooming);
+    setShopResult(matches ? saved.shopResult : null);
+    setImageStatus(saved.imageStatus);
+    setImageMessage(saved.imageMessage);
+    shopFingerprintRef.current = matches ? fingerprint : null;
+    imageFingerprintRef.current = saved.look.completeOutfitImage ? fingerprint : null;
   }, []);
 
   useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            const idx = sectionsRef.current.indexOf(entry.target as HTMLElement);
-            if (idx !== -1) setActiveStage(idx);
-          }
-        }
-      },
-      { root: getScrollContainer(), threshold: 0.5 },
-    );
-
-    sectionsRef.current.forEach((s) => {
-      if (s) observer.observe(s);
+    if (!look) return;
+    writeBuildLookSession({
+      form,
+      look,
+      grooming,
+      shopResult,
+      shopFingerprint: buildLookShopFingerprint(look, lookContext),
+      imageStatus,
+      imageMessage,
     });
-    return () => observer.disconnect();
-  }, [stages.length]);
+  }, [form, grooming, imageMessage, imageStatus, look, lookContext, shopResult]);
+
+  useEffect(() => {
+    const saved = readAvatarPreference();
+    if (!saved) return;
+    const audience = selectedAudience(saved.audience);
+    if (audience) {
+      setForm((current) => ({ ...current, audience }));
+    }
+    if (saved.modelId) setAvatarPreference(saved.modelId);
+  }, []);
+
+  useEffect(() => {
+    const audience = selectedAudience(form.audience);
+    if (!audience) return;
+    writeAvatarPreference({
+      audience,
+      modelId: avatarSelection.modelId,
+    });
+  }, [avatarSelection.modelId, form.audience]);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const applyMotionPreference = (reduced: boolean) => {
+      setAutoRotateEnabled(!reduced);
+    };
+    applyMotionPreference(mq.matches);
+    const handler = (event: MediaQueryListEvent) => applyMotionPreference(event.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
 
   const handleHotspotClick = useCallback((itemId: string) => {
     setActiveItemId((prev) => (prev === itemId ? null : itemId));
   }, []);
 
-  const highlightCategories = stages[activeStage]?.highlightCategories ?? [];
-  const activeItem = activeItemId
-    ? outfit?.items.find((i) => i.id === activeItemId)
-    : undefined;
+  const handleAvatarModelChange = useCallback((id: FashionModelId) => {
+    setAvatarPreference(id);
+  }, []);
+
+  const highlightCategories = activeItemId
+    ? [outfit?.items.find((item) => item.id === activeItemId)?.category ?? ""]
+    : [];
+
 
   if (!outfit) {
     return (
@@ -399,7 +621,7 @@ export default function BuildLookPage() {
             transition={{ duration: 0.6, delay: 0.1 }}
             className="mb-8 text-muted-foreground"
           >
-            Describe the event and your AI stylist will curate a complete outfit for it.
+            Describe the event and your AI stylist will curate complete styling guidance for it.
           </motion.p>
           <div className="mb-6">
             <StyleProfileCard profile={styleProfile} onChange={setStyleProfile} />
@@ -417,214 +639,172 @@ export default function BuildLookPage() {
   }
 
   return (
-    <div
-      className="relative min-h-full"
-      style={{ background: "#050816" }}
-    >
-      <BackgroundEffects activeStage={activeStage} />
+    <div className="relative min-h-full" style={{ background: "#050816" }}>
+      <BackgroundEffects activeStage={0} />
 
-      {/* Fixed 3D Scene — a single WebGL context shared by all breakpoints */}
-      <div className="pointer-events-none fixed inset-x-0 top-0 z-0 h-[40vh] [&_canvas]:pointer-events-auto lg:bottom-0 lg:right-auto lg:h-auto lg:w-[60%]">
-        <FashionScene
-          activeStage={activeStage}
-          highlightCategories={highlightCategories}
-          activeItemId={activeItemId}
-          autoRotate={!showReducedMotion}
-          items={outfit.items}
-          onHotspotClick={handleHotspotClick}
-        />
-      </div>
-
-      {/* Scroll Progress */}
-      {!showReducedMotion && (
-        <ScrollProgress
-          totalStages={stages.length}
-          currentStage={activeStage}
-          stageLabels={stages.map((s) => s.subtitle)}
-        />
-      )}
-
-      {/* Scroll Content Column */}
-      <div className="relative z-10 lg:ml-[60%] lg:w-[40%]">
-        <section className="flex min-h-[50vh] items-center justify-center px-6 py-12">
-          <div className="text-center">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
+      <div className="relative z-10 mx-auto w-full max-w-[1500px] px-4 py-8 sm:px-6 lg:px-10">
+        <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <Link
+              href="/dashboard"
+              className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
             >
-              <Link
-                href="/dashboard"
-                className="mb-6 inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
-              >
-                <ArrowLeft className="h-4 w-4" />
-                Back to Dashboard
-              </Link>
-            </motion.div>
-            <motion.h1
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.7, delay: 0.1 }}
-              className="mb-3 text-4xl font-bold tracking-tight text-foreground lg:text-5xl"
-            >
+              <ArrowLeft className="h-4 w-4" />
+              Back to Dashboard
+            </Link>
+            <h1 className="mt-4 text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
               {outfit.eventName}
-            </motion.h1>
-            <motion.p
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.25 }}
-              className="mb-2 text-lg text-muted-foreground"
-            >
-              {outfit.styleName} · {outfit.items.length} pieces
-            </motion.p>
-            <motion.p
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.5, delay: 0.4 }}
-              className="text-sm text-muted-foreground/60"
-            >
-              Scroll down to explore each piece
-            </motion.p>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.5, delay: 0.6 }}
-              className="mt-8"
-            >
-              <Button variant="secondary" size="sm" className="gap-2" onClick={handleRegenerate}>
-                <RotateCcw className="h-3.5 w-3.5" />
-                Start over
-              </Button>
-            </motion.div>
+            </h1>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {outfit.styleName} · {outfit.items.length} pieces · {avatarSelection.audienceLabel}
+            </p>
           </div>
-        </section>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" size="sm" className="gap-2" asChild>
+              <Link href={productSearchHref}>
+                <Search className="h-3.5 w-3.5" />
+                Search products
+              </Link>
+            </Button>
+            <Button variant="secondary" size="sm" className="gap-2" onClick={handleRegenerate}>
+              <RotateCcw className="h-3.5 w-3.5" />
+              Start over
+            </Button>
+          </div>
+        </header>
 
-        {stages.map((stage, i) => {
-          const isActive = activeStage === i;
+        <CompleteOutfitImage
+          image={outfit.completeOutfitImage ?? null}
+          audience={shopAudience}
+          status={imageStatus}
+          message={imageMessage}
+          isLoading={isGeneratingImage}
+          onGenerate={() => {
+            if (look) void runImage(look, lookContext, shopResult, { force: true });
+          }}
+          onRetry={() => {
+            if (look) void runImage(look, lookContext, shopResult, { force: true });
+          }}
+        />
 
-          return (
-            <section
-              key={stage.id}
-              ref={(el) => {
-                sectionsRef.current[i] = el;
-              }}
-              className="flex min-h-[80vh] items-center px-6 py-12"
-            >
-              <div className="w-full max-w-md space-y-6">
-                {stage.kind === "overview" && <OutfitOverview data={outfit} />}
+        <div className="mt-6">
+          <OutfitSummaryPanel
+            outfit={outfit}
+            audience={shopAudience}
+            occasion={form.occasion}
+            style={form.style}
+          />
+        </div>
 
-                {stage.kind === "analysis" && (
-                  <AIAnalysis
-                    styleMatch={outfit.styleMatch}
-                    eventMatch={outfit.eventMatch}
-                    isVisible={isActive}
-                  />
-                )}
+        <div className="mt-6">
+          <OutfitPieceBreakdown outfit={outfit} />
+        </div>
 
-                {stage.kind === "item" && stage.itemIndex !== undefined && (
-                  <ScrollCard
-                    stage={stage}
-                    item={outfit.items[stage.itemIndex]}
-                    isActive={isActive}
-                    index={stage.itemIndex}
-                  />
-                )}
+        <div className="mt-6 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-xl font-semibold text-white">Find products for this look</h2>
+              <p className="mt-1 text-xs text-slate-400">
+                Product search runs automatically from the recommended pieces.
+              </p>
+            </div>
+            <Button className="gap-2" disabled={isShopping} onClick={handleShopLook}>
+              <Search className="h-4 w-4" />
+              {isShopping ? "Searching..." : "Search products"}
+            </Button>
+          </div>
+        </div>
 
-                {stage.kind === "grooming" && grooming && (
-                  <GroomingResults
-                    plan={grooming}
-                    isVisible={isActive}
-                    isLoading={isGenerating && form.includeGrooming}
-                  />
-                )}
+        <div className="mt-6">
+          <OutfitShoppingList result={shopResult} notice={shoppingNotice} />
+        </div>
 
-                {stage.kind === "shopping" && (
-                  <>
-                    <ShoppingSummary data={outfit} isVisible={isActive} />
+        <div className="mt-6">
+          <OutfitStudio
+            modelId={avatarSelection.modelId}
+            allowedModelIds={avatarSelection.allowedModelIds}
+            onAvatarModelChange={handleAvatarModelChange}
+            autoRotate={autoRotateEnabled}
+            onAutoRotateChange={setAutoRotateEnabled}
+            highlightCategories={highlightCategories}
+            activeItemId={activeItemId}
+            pieces={outfitPieces}
+            selectedSlot={selectedSlot}
+            onHotspotClick={handleHotspotClick}
+          />
+          <div className="grid gap-3 rounded-2xl border border-white/10 bg-slate-950/50 p-3">
+            <OutfitPieceRail
+              pieces={outfitPieces}
+              activePieceId={activeItemId}
+              onSelect={handleHotspotClick}
+            />
+            <OutfitProductPanel piece={activePiece} />
+          </div>
+        </div>
 
-                    <div className="glass space-y-4 rounded-2xl border border-border/50 p-6 backdrop-blur-xl">
-                      <StyleSelector
-                        selected={form.style}
-                        onSelect={(s) => setForm((f) => ({ ...f, style: s }))}
-                      />
-                      <BudgetSelector
-                        selected={form.budget}
-                        onSelect={(b) => setForm((f) => ({ ...f, budget: b }))}
-                      />
-                      <Button
-                        className="w-full gap-2"
-                        variant="secondary"
-                        disabled={isMutating}
-                        onClick={() => void handleAddItem()}
-                      >
-                        <Plus className="h-4 w-4" />
-                        {isMutating ? "Adding an item..." : "Add one more item"}
-                      </Button>
-                      <Button
-                        className="w-full gap-2"
-                        variant="secondary"
-                        disabled={isGenerating}
-                        onClick={() => void handleGenerate()}
-                      >
-                        <Sparkles className="h-4 w-4" />
-                        {isGenerating ? "Rebuilding..." : "Rebuild with these settings"}
-                      </Button>
-                    </div>
+        <div className="mt-6">
+          <SaveShareActions isSaving={isSaving} onSave={() => void handleSaveOutfit()} />
+        </div>
 
-                    {error && (
-                      <p
-                        role="alert"
-                        className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-                      >
-                        {error}
-                      </p>
-                    )}
-
-                    <div className="glass space-y-4 rounded-2xl border border-border/50 p-8 text-center backdrop-blur-xl">
-                      <Sparkles className="mx-auto h-6 w-6 text-primary" />
-                      <h2 className="text-2xl font-bold text-foreground">
-                        Your style. Decided by AI.
-                      </h2>
-                      <p className="text-sm text-muted-foreground">See it. Style it. Buy it for less.</p>
-                      <div className="flex gap-3 pt-2">
-                        <Button className="flex-1 gap-2" size="lg" asChild>
-                          <Link href="/products">
-                            <ShoppingBag className="h-4 w-4" />
-                            Shop This Look
-                          </Link>
-                        </Button>
-                        <Button
-                          className="flex-1 gap-2"
-                          variant="secondary"
-                          size="lg"
-                          disabled={isSaving}
-                          onClick={() => void handleSaveOutfit()}
-                        >
-                          <Bookmark className="h-4 w-4" />
-                          {isSaving ? "Saving..." : "Save Outfit"}
-                        </Button>
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
-            </section>
-          );
-        })}
+        <div className="mt-6 grid gap-5 lg:grid-cols-2">
+          <div className="glass space-y-4 rounded-2xl border border-border/50 p-6 backdrop-blur-xl">
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">Refine this look</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Adjust the direction, then rebuild or add another item.
+              </p>
+            </div>
+            <StyleProfileCard profile={styleProfile} onChange={setStyleProfile} />
+            <StyleSelector
+              selected={form.style}
+              onSelect={(s) => setForm((f) => ({ ...f, style: s }))}
+            />
+            <BudgetSelector
+              selected={form.budget}
+              onSelect={(b) => setForm((f) => ({ ...f, budget: b }))}
+            />
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button
+                className="flex-1 gap-2"
+                variant="secondary"
+                disabled={isMutating}
+                onClick={() => void handleAddItem()}
+              >
+                <Plus className="h-4 w-4" />
+                {isMutating ? "Adding an item..." : "Add one more item"}
+              </Button>
+              <Button
+                className="flex-1 gap-2"
+                disabled={isGenerating}
+                onClick={() => void handleGenerate()}
+              >
+                <Sparkles className="h-4 w-4" />
+                {isGenerating ? "Rebuilding..." : "Rebuild with these settings"}
+              </Button>
+            </div>
+            {activeItemId && (
+              <Button
+                className="w-full gap-2"
+                variant="outline"
+                disabled={replacingId === activeItemId}
+                onClick={() => void handleReplace(activeItemId)}
+              >
+                <RotateCcw className="h-4 w-4" />
+                {replacingId === activeItemId ? "Replacing item..." : "Replace selected item"}
+              </Button>
+            )}
+            {error && (
+              <p
+                role="alert"
+                className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+              >
+                {error}
+              </p>
+            )}
+          </div>
+        </div>
       </div>
 
-      {/* Product detail panel */}
-      <AnimatePresence>
-        {activeItem && (
-          <ProductInfoCard
-            item={activeItem}
-            isVisible={!!activeItem}
-            onClose={() => setActiveItemId(null)}
-            onReplace={(itemId) => void handleReplace(itemId)}
-            isReplacing={replacingId === activeItem.id}
-          />
-        )}
-      </AnimatePresence>
     </div>
   );
 }

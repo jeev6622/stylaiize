@@ -74,7 +74,7 @@ function outfitSet(index: number): Record<string, unknown> {
 
   const items = [
     { type: "shirt", name: base?.name === "The Timeless Classic" ? "White Oxford Shirt" : "Light-Blue Poplin Shirt", color: "#f8fafc", price: 1299 },
-    { type: "pants", name: "Tailored Trousers", color: "#334155", price: 1899 },
+    { type: "trousers", name: "Tailored Trousers", color: "#334155", price: 1899 },
     { type: "shoes", name: "Brown Leather Loafers", color: "#7c4a1e", price: 2499 },
     { type: "watch", name: "Minimal Chronograph Watch", color: "#1e293b", price: 3299 },
     { type: "belt", name: "Full-Grain Leather Belt", color: "#6b4226", price: 799 },
@@ -90,7 +90,7 @@ function outfitSet(index: number): Record<string, unknown> {
     items: items.map((it, i) => ({
       type: it.type,
       name: it.name,
-      brand: "Demo Brand",
+      brand: null,
       color: it.color,
       price: it.price,
       currency: "INR",
@@ -117,11 +117,12 @@ const TASK_RESPONSES: Record<string, (req: AIRequest) => Record<string, unknown>
   },
 
   analyze_photo: () => ({
-    photoType: "full_body",
-    quality: 86,
-    confidence: 91,
-    detectedPeople: 1,
-    issues: [],
+    name: "Tailored Cotton Shirt",
+    category: "tops",
+    color: "White",
+    brand: null,
+    tags: ["shirt", "cotton", "tailored"],
+    confidence: 86,
   }),
 
   analyze_body: () => ({
@@ -221,7 +222,7 @@ const TASK_RESPONSES: Record<string, (req: AIRequest) => Record<string, unknown>
       {
         type: "accessory",
         name: "Matching Beaded Bracelets",
-        brand: "Demo",
+        brand: null,
         color: "#b45309",
         price: 499,
         currency: "INR",
@@ -232,7 +233,7 @@ const TASK_RESPONSES: Record<string, (req: AIRequest) => Record<string, unknown>
       {
         type: "accessory",
         name: "Coordinating Pocket Square & Scarf",
-        brand: "Demo",
+        brand: null,
         color: "#0f172a",
         price: 699,
         currency: "INR",
@@ -258,7 +259,7 @@ const TASK_RESPONSES: Record<string, (req: AIRequest) => Record<string, unknown>
         {
           type: "accessory",
           name: "Shared Pocket Square Set",
-          brand: "Demo",
+          brand: null,
           color: "#c2410c",
           price: 599,
           currency: "INR",
@@ -269,7 +270,7 @@ const TASK_RESPONSES: Record<string, (req: AIRequest) => Record<string, unknown>
         {
           type: "accessory",
           name: "Cufflink & Tie Bar Set",
-          brand: "Demo",
+          brand: null,
           color: "#facc15",
           price: 799,
           currency: "INR",
@@ -305,107 +306,77 @@ const TASK_RESPONSES: Record<string, (req: AIRequest) => Record<string, unknown>
 };
 
 /**
- * Build Your Look demo outfit. Only used when AI_PROVIDER=mock, so the
- * feature is explorable without keys. Prices/brands are clearly demo data.
+ * Build Your Look demo styling guidance. Only used when AI_PROVIDER=mock.
  */
 const DEMO_LOOK_ITEMS: Record<string, unknown>[] = [
   {
     id: "demo-upperwear-1",
-    name: "Crisp White Cotton Shirt",
-    subtitle: "Breathable everyday button-down",
+    name: "Lightweight tailored shirt in crisp white",
+    subtitle: "Breathable everyday layer",
     description:
-      "A regular-fit cotton shirt in a warm white. Works tucked or untucked and layers cleanly under a blazer.",
-    brand: "Demo Brand",
-    material: "100% combed cotton",
-    color: "White",
-    size: "M",
-    price: 1299,
-    originalPrice: 1899,
-    rating: 4.3,
-    store: "Demo Store",
+      "A relaxed-tailored shirt in warm white that layers cleanly and stays comfortable across the event.",
+    material: "Breathable cotton or cotton blend",
+    color: "Warm white",
+    size: "Regular fit, your usual size",
     category: "upperwear",
-    imageUrl: null,
   },
   {
     id: "demo-lowerwear-1",
-    name: "Slim-Fit Navy Chinos",
-    subtitle: "Tailored casual trousers",
+    name: "Slim tailored chinos in deep navy",
+    subtitle: "Polished base piece",
     description:
-      "Mid-rise navy chinos with a slight stretch. A safe base that reads polished without being formal.",
-    brand: "Demo Brand",
-    material: "Cotton stretch twill",
-    color: "Navy",
-    size: "32",
-    price: 1599,
-    originalPrice: 2199,
-    rating: 4.2,
-    store: "Demo Store",
+      "Mid-rise chinos with a clean line to balance smart-casual styling without feeling too formal.",
+    material: "Cotton twill with slight stretch",
+    color: "Deep navy",
+    size: "Tailored fit, your usual waist",
     category: "lowerwear",
-    imageUrl: null,
   },
   {
     id: "demo-footwear-1",
-    name: "Minimal White Leather Sneakers",
-    subtitle: "Clean everyday trainers",
+    name: "Minimal leather sneakers in white",
+    subtitle: "Clean, modern footwear",
     description:
-      "Low-profile white leather sneakers that keep the whole look modern and slightly relaxed.",
-    brand: "Demo Brand",
-    material: "Leather upper, rubber sole",
+      "Low-profile sneakers that keep the look modern while remaining easy to wear throughout the day.",
+    material: "Smooth leather or leather-look upper",
     color: "White",
-    size: "9",
-    price: 2499,
-    originalPrice: 3499,
-    rating: 4.4,
-    store: "Demo Store",
+    size: "Your usual shoe size",
     category: "footwear",
-    imageUrl: null,
   },
   {
     id: "demo-accessories-1",
-    name: "Full-Grain Leather Belt",
-    subtitle: "Matching navy-brown tone",
+    name: "Slim leather belt in dark brown",
+    subtitle: "Subtle anchor piece",
     description:
-      "A single leather belt that anchors the shirt and chinos without adding visual noise.",
-    brand: "Demo Brand",
-    material: "Full-grain leather",
-    color: "Dark Brown",
-    size: "32",
-    price: 799,
-    originalPrice: 1199,
-    rating: 4.1,
-    store: "Demo Store",
+      "A simple belt to finish the waistline and tie the outfit together without drawing attention.",
+    material: "Leather",
+    color: "Dark brown",
+    size: "Matched to your waist size",
     category: "accessories",
-    imageUrl: null,
   },
   {
     id: "demo-accessories-2",
-    name: "Classic Analog Wrist Watch",
-    subtitle: "One subtle statement piece",
+    name: "Classic analog watch with neutral strap",
+    subtitle: "Refined finishing touch",
     description:
-      "A clean dial watch with a leather strap. Adds a finished feel to the sleeves and wrist.",
-    brand: "Demo Brand",
-    material: "Steel case, leather strap",
-    color: "Black",
-    size: "OS",
-    price: 3299,
-    originalPrice: 4999,
-    rating: 4.3,
-    store: "Demo Store",
+      "A clean dial watch that adds polish while staying understated for the occasion.",
+    material: "Metal case with leather or neutral strap",
+    color: "Black or charcoal strap",
+    size: "One size",
     category: "accessories",
-    imageUrl: null,
   },
 ];
 
-/** Reads the event name out of the instruction text the service sends. */
 function eventNameFromInstruction(req: AIRequest): string | undefined {
   const text = req.messages.map((m) => m.content).join("\n");
   return /Event name:\s*(.+)/i.exec(text)?.[1]?.trim();
 }
 
-/**
- * Deterministic demo grooming plan. Clearly demo-only output used when
- * AI_PROVIDER=mock, so the grooming feature is explorable without keys.
- */
+function weatherNoteFromInstruction(req: AIRequest): string | undefined {
+  const text = req.messages.map((m) => m.content).join("\n");
+  const match = /Real weather context \(provided by client\): ([^.]+)\./i.exec(text);
+  return match ? `Guidance considers the provided weather: ${match[1].trim()}.` : undefined;
+}
+
 function demoGrooming(): Record<string, unknown> {
   return {
     summary:
@@ -450,26 +421,30 @@ function demoGrooming(): Record<string, unknown> {
   };
 }
 
-function demoLook(eventName: string | undefined, items: Record<string, unknown>[]) {
-  const originalTotal = items.reduce(
-    (sum, i) => sum + (i.originalPrice as number),
-    0,
-  );
-  const optimizedTotal = items.reduce((sum, i) => sum + (i.price as number), 0);
+function demoLook(
+  eventName: string | undefined,
+  items: Record<string, unknown>[],
+  weatherNote?: string,
+) {
   return {
     eventName: eventName ?? "Your Event",
     styleName: "Polished Everyday",
     styleMatch: 92,
     eventMatch: 90,
+    colorCombination:
+      "Start with warm white and deep navy, then add dark brown and subtle neutral accents for balance.",
+    footwear: "Keep footwear clean and minimal in white leather sneakers to ground the smart-casual look.",
+    accessories: [
+      "Add a dark brown slim leather belt to define the waistline.",
+      "Finish with a classic analog watch in a neutral strap for understated polish.",
+    ],
+    explanation:
+      "This direction reads polished and comfortable: breathable layers up top, tailored structure below, and restrained accessories that work across casual-to-smart occasions.",
+    ...(weatherNote ? { weatherNote } : {}),
     items,
-    originalTotal,
-    optimizedTotal,
-    savings: originalTotal - optimizedTotal,
-    grooming: demoGrooming(),
   };
 }
 
-/** Parse "item-id | name" lines from the context block the service sends. */
 function parseContextItems(req: AIRequest): Record<string, unknown>[] {
   const text = req.messages.map((m) => m.content).join("\n");
   const block = /Current outfit:\n([\s\S]*?)(?:\n\n|$)/.exec(text)?.[1];
@@ -482,16 +457,26 @@ function parseContextItems(req: AIRequest): Record<string, unknown>[] {
     .filter((i): i is Record<string, unknown> => Boolean(i));
 }
 
+function wantsGrooming(req: AIRequest): boolean {
+  const text = req.messages.map((m) => m.content).join("\n");
+  return /"grooming"\s*:/.test(text);
+}
+
 Object.assign(TASK_RESPONSES, {
-  build_your_look: (req: AIRequest) =>
-    demoLook(eventNameFromInstruction(req), DEMO_LOOK_ITEMS),
+  build_your_look: (req: AIRequest) => {
+    const look = demoLook(
+      eventNameFromInstruction(req),
+      DEMO_LOOK_ITEMS,
+      weatherNoteFromInstruction(req),
+    );
+    return wantsGrooming(req) ? { ...look, grooming: demoGrooming() } : look;
+  },
 
   build_your_look_replace: (req: AIRequest) => {
     const current = parseContextItems(req);
     const base = current.length > 0 ? current : DEMO_LOOK_ITEMS;
-    const targetId = /Replace ONLY the item with id "([^"]+)"/.exec(
-      req.messages.map((m) => m.content).join("\n"),
-    )?.[1];
+    const text = req.messages.map((m) => m.content).join("\n");
+    const targetId = /Replace ONLY the item with id "([^"]+)"/.exec(text)?.[1];
     const swapped = base.map((item) =>
       item.id === targetId
         ? {
@@ -500,7 +485,7 @@ Object.assign(TASK_RESPONSES, {
           }
         : item,
     );
-    return demoLook(eventNameFromInstruction(req), swapped);
+    return demoLook(eventNameFromInstruction(req), swapped, weatherNoteFromInstruction(req));
   },
 
   build_your_look_add: (req: AIRequest) => {
@@ -510,6 +495,7 @@ Object.assign(TASK_RESPONSES, {
     return demoLook(
       eventNameFromInstruction(req),
       extra ? [...base, { ...extra, id: `demo-added-${Date.now()}` }] : base,
+      weatherNoteFromInstruction(req),
     );
   },
 });

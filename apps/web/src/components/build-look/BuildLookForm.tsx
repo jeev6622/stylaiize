@@ -7,9 +7,12 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { StyleSelector } from "./StyleSelector";
 import { BudgetSelector } from "./BudgetSelector";
+import { BUILD_LOOK_AUDIENCES, type BuildLookAudience } from "@stylaiize/shared";
+import { cn } from "@/lib/utils";
 import type { BudgetLevel, StyleType } from "./types";
 
 export interface BuildLookFormState {
+  audience: BuildLookAudience | "";
   eventName: string;
   occasion: string;
   dressCode: string;
@@ -23,6 +26,7 @@ export interface BuildLookFormState {
 }
 
 export const EMPTY_BUILD_LOOK_FORM: BuildLookFormState = {
+  audience: "",
   eventName: "",
   occasion: "",
   dressCode: "",
@@ -53,7 +57,8 @@ export function BuildLookForm({
   const set = <K extends keyof BuildLookFormState>(key: K, val: BuildLookFormState[K]) =>
     onChange({ ...value, [key]: val });
 
-  const canSubmit = value.eventName.trim().length >= 2 && !isSubmitting;
+  const canSubmit =
+    value.audience !== "" && value.eventName.trim().length >= 2 && !isSubmitting;
 
   return (
     <div className="glass space-y-6 rounded-2xl border border-border/50 p-6 backdrop-blur-xl">
@@ -63,6 +68,29 @@ export function BuildLookForm({
           The more detail you give, the better the AI can build your look. Required fields are
           marked.
         </p>
+      </div>
+
+      <div className="space-y-2">
+        <Label>
+          Who is this look for? <span className="text-destructive">*</span>
+        </Label>
+        <div className="grid grid-cols-3 gap-2">
+          {BUILD_LOOK_AUDIENCES.map((audience) => (
+            <button
+              key={audience}
+              type="button"
+              onClick={() => set("audience", audience)}
+              className={cn(
+                "rounded-lg border px-2 py-2 text-xs font-medium capitalize transition-colors",
+                value.audience === audience
+                  ? "border-primary bg-primary/10 text-foreground"
+                  : "border-border bg-secondary/20 text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {audience}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="space-y-2">

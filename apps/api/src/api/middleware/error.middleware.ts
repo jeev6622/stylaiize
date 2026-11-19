@@ -22,11 +22,12 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
       fieldErrors[key] = fieldErrors[key] ?? [];
       fieldErrors[key].push(issue.message);
     }
+    const firstMessage = Object.values(fieldErrors)[0]?.[0] ?? "Invalid input.";
     res.status(422).json({
       success: false,
       error: {
         code: "VALIDATION_ERROR",
-        message: "Invalid input.",
+        message: firstMessage,
         fieldErrors,
       },
     });

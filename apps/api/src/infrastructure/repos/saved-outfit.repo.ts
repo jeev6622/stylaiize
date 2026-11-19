@@ -18,6 +18,7 @@ export class MongoSavedOutfitRepository implements SavedOutfitRepository {
       userId: input.userId,
       name: input.name,
       category: input.category ?? "casual",
+      audience: input.audience ?? "all",
       occasion: input.occasion ?? null,
       style: input.style ?? null,
       colors: input.colors ?? [],
@@ -48,7 +49,7 @@ export class MongoSavedOutfitRepository implements SavedOutfitRepository {
     patch: Partial<
       Pick<
         SavedOutfit,
-        "name" | "category" | "occasion" | "style" | "colors" | "budget" | "items" | "scores" | "totalCost" |
+        "name" | "category" | "audience" | "occasion" | "style" | "colors" | "budget" | "items" | "scores" | "totalCost" |
         "imageUrl" | "explanation" | "grooming"
       >
     >,

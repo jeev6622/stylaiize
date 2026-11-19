@@ -18,6 +18,7 @@ function defaultPreferences(): User["preferences"] {
     pushNotifications: false,
     deviceTokens: [],
     units: "metric",
+    favoriteProducts: [],
   };
 }
 

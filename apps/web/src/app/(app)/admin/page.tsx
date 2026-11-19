@@ -16,6 +16,7 @@ import {
   Loader2,
   RefreshCw,
   AlertTriangle,
+  Clock,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -33,20 +34,110 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { apiClient } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
-import { API_ENDPOINTS, type User } from "@stylaiize/shared";
+import {
+  API_ENDPOINTS,
+  type ShoppingProviderState,
+  type ShoppingProviderStatus,
+  type User,
+} from "@stylaiize/shared";
 
-type Tab = "overview" | "users";
+type Tab = "overview" | "providers" | "users";
+
+interface ProviderState {
+  active?: string | boolean | null;
+  demoMode?: boolean;
+  configured?: boolean;
+}
+
+interface ProvidersStatus {
+  ai?: ProviderState;
+  database?: ProviderState;
+  storage?: ProviderState;
+  shopping?: ProviderState & ShoppingProviderStatus;
+  vton?: ProviderState;
+  email?: ProviderState;
+  notification?: ProviderState;
+}
 
 interface AdminStats {
   totalUsers: number;
   totalConversations: number;
   totalWardrobeItems: number;
   recentUsers: User[];
+  providers?: ProvidersStatus;
+  uptime?: number;
 }
 
 interface ListUsersResult {
   users: User[];
   total: number;
+}
+
+function formatUptime(seconds?: number) {
+  if (typeof seconds !== "number" || !Number.isFinite(seconds)) return "Unavailable";
+  const total = Math.max(0, Math.floor(seconds));
+  const days = Math.floor(total / 86400);
+  const hours = Math.floor((total % 86400) / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const parts = [];
+  if (days) parts.push(`${days}d`);
+  if (hours || days) parts.push(`${hours}h`);
+  parts.push(`${minutes}m`);
+  return parts.join(" ");
+}
+
+function providerLabel(provider?: ProviderState): { label: string; tone: "live" | "demo" | "none" } {
+  if (!provider) return { label: "Unavailable", tone: "none" };
+  const active = provider.active;
+  const demo = provider.demoMode === true;
+
+  if (active === false || active === "none" || active == null) {
+    return { label: "None", tone: "none" };
+  }
+  if (demo || active === "mock") {
+    return { label: typeof active === "string" && active !== "mock" ? `Demo (${active})` : "Demo", tone: "demo" };
+  }
+  if (typeof active === "boolean") {
+    return { label: "Live", tone: "live" };
+  }
+  return { label: `Live (${active})`, tone: "live" };
+}
+
+function toneClasses(tone: "live" | "demo" | "none") {
+  if (tone === "live") return "bg-emerald-500";
+  if (tone === "demo") return "bg-amber-500";
+  return "bg-muted-foreground/40";
+}
+
+const SHOPPING_STATE_LABELS: Record<ShoppingProviderState, string> = {
+  connected: "Connected",
+  not_configured: "Not configured",
+  approval_required: "Approval or credentials required",
+  authentication_failed: "Authentication failed",
+  temporarily_unavailable: "Temporarily unavailable",
+  verification_pending: "Verification pending",
+};
+
+function shoppingStateTone(state: string): "live" | "demo" | "none" {
+  if (state === "connected") return "live";
+  if (
+    state === "verification_pending" ||
+    state === "not_configured" ||
+    state === "approval_required"
+  ) {
+    return "demo";
+  }
+  return "none";
+}
+
+function shoppingStateLabel(state: string): string {
+  return SHOPPING_STATE_LABELS[state as ShoppingProviderState] ?? state.replaceAll("_", " ");
+}
+
+function formatSyncTime(value: string | null): string {
+  if (!value) return "Never";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "Invalid" : date.toLocaleString();
 }
 
 function StatCard({
@@ -159,7 +250,7 @@ function UserRow({
                 <p>
                   {user.mobile
                     ? `${user.countryCode} ${user.mobile}`
-                    : "—"}
+                    : "-"}
                 </p>
               </div>
 
@@ -197,10 +288,23 @@ function UserRow({
 function OverviewTab({
   stats,
   loading,
+  onRefresh,
 }: {
   stats: AdminStats | null;
   loading: boolean;
+  onRefresh: () => void;
 }) {
+  const providers = stats?.providers;
+  const rows: { label: string; state?: ProviderState }[] = [
+    { label: "AI Provider", state: providers?.ai },
+    { label: "Database", state: providers?.database },
+    { label: "Storage", state: providers?.storage },
+    { label: "Shopping", state: providers?.shopping },
+    { label: "VTON", state: providers?.vton },
+    { label: "Email", state: providers?.email },
+    { label: "Notifications", state: providers?.notification },
+  ];
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -226,9 +330,9 @@ function OverviewTab({
           loading={loading}
         />
         <StatCard
-          label="System Status"
-          value="Operational"
-          icon={Activity}
+          label="Uptime"
+          value={formatUptime(stats?.uptime)}
+          icon={Clock}
           color="bg-amber-500/15 text-amber-400"
           loading={loading}
         />
@@ -265,14 +369,14 @@ function OverviewTab({
                       <td className="px-5 py-3"><Skeleton className="h-4 w-20" /></td>
                     </tr>
                   ))
-                ) : stats?.recentUsers.length === 0 ? (
+                ) : (stats?.recentUsers?.length ?? 0) === 0 ? (
                   <tr>
                     <td colSpan={4} className="px-5 py-8 text-center text-sm text-muted-foreground">
                       No users yet.
                     </td>
                   </tr>
                 ) : (
-                  stats?.recentUsers.map((u) => (
+                  stats!.recentUsers.map((u) => (
                     <tr key={u.id} className="border-b border-border/50 transition-colors hover:bg-secondary/30">
                       <td className="px-5 py-3 text-sm font-medium">{u.name}</td>
                       <td className="px-5 py-3 text-sm text-muted-foreground">{u.email}</td>
@@ -292,43 +396,154 @@ function OverviewTab({
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.05 }}
-          className="rounded-2xl border border-border bg-card/50 p-5"
+          className="space-y-4"
         >
-          <h3 className="mb-4 text-sm font-semibold">System Health</h3>
+          <div className="rounded-2xl border border-border bg-card/50 p-5">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-sm font-semibold">System Health</h3>
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onRefresh} title="Refresh status">
+                <RefreshCw className="h-4 w-4" />
+              </Button>
+            </div>
 
-          <div className="space-y-4">
-            {[
-              { label: "AI Provider", status: "Active", active: true },
-              { label: "Database", status: "Demo / In-Memory", active: false },
-              { label: "Storage", status: "Demo / Local", active: false },
-              { label: "Shopping Engine", status: "Demo", active: false },
-            ].map((item) => (
-              <div
-                key={item.label}
-                className="flex items-center justify-between rounded-lg bg-secondary/30 px-4 py-3"
-              >
-                <div className="flex items-center gap-3">
-                  <div
-                    className={cn(
-                      "h-2 w-2 rounded-full",
-                      item.active ? "bg-emerald-500" : "bg-emerald-500"
-                    )}
-                  />
-                  <span className="text-sm">{item.label}</span>
-                </div>
+            <div className="space-y-3">
+              {loading ? (
+                Array.from({ length: 7 }).map((_, i) => (
+                  <Skeleton key={i} className="h-11 w-full rounded-lg" />
+                ))
+              ) : !providers ? (
+                <p className="text-sm text-muted-foreground">Provider status is unavailable.</p>
+              ) : (
+                rows.map((row) => {
+                  const { label, tone } = providerLabel(row.state);
+                  return (
+                    <div
+                      key={row.label}
+                      className="flex items-center justify-between rounded-lg bg-secondary/30 px-4 py-3"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={cn("h-2 w-2 rounded-full", toneClasses(tone))} />
+                        <span className="text-sm">{row.label}</span>
+                      </div>
+                      <Badge
+                        variant={tone === "live" ? "success" : "secondary"}
+                        className="text-[10px]"
+                      >
+                        {label}
+                      </Badge>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
 
-                <Badge
-                  variant={item.active ? "success" : "secondary"}
-                  className="text-[10px]"
-                >
-                  {item.status}
-                </Badge>
-              </div>
-            ))}
+          <div className="rounded-2xl border border-border bg-card/50 p-5">
+            <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold">
+              <Activity className="h-4 w-4 text-muted-foreground" />
+              Error monitoring
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              Error monitoring is not configured for this deployment.
+            </p>
           </div>
         </motion.div>
       </div>
     </div>
+  );
+}
+
+function ProvidersTab() {
+  const [status, setStatus] = useState<ShoppingProviderStatus | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    apiClient
+      .get<ShoppingProviderStatus>(API_ENDPOINTS.shoppingStatus)
+      .then(setStatus)
+      .catch(() => toast.error("Failed to load shopping provider status."))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="space-y-4"
+    >
+      <div className="flex items-center justify-between rounded-2xl border border-border bg-card/50 p-5">
+        <div>
+          <h2 className="text-sm font-semibold">Shopping provider status</h2>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Active: {status?.active ?? "unknown"} · {status?.activeProviderId ?? "none"}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            A provider is shown as connected only after a successful live request.
+          </p>
+        </div>
+        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={load} title="Refresh status">
+          <RefreshCw className="h-4 w-4" />
+        </Button>
+      </div>
+
+      {loading ? (
+        <div className="space-y-2">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} className="h-20 w-full rounded-xl" />
+          ))}
+        </div>
+      ) : !status ? (
+        <p className="text-sm text-muted-foreground">Shopping provider status is unavailable.</p>
+      ) : (
+        <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+          {status.providers.map((provider) => {
+            const tone = shoppingStateTone(provider.state);
+            return (
+              <div
+                key={provider.id}
+                className="rounded-2xl border border-border bg-card/50 p-5"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className={cn("h-2 w-2 rounded-full", toneClasses(tone))} />
+                    <div>
+                      <p className="text-sm font-medium">{provider.label}</p>
+                      <p className="font-mono text-[10px] text-muted-foreground">{provider.id}</p>
+                    </div>
+                  </div>
+                  <Badge
+                    variant={tone === "live" ? "success" : "secondary"}
+                    className="text-[10px]"
+                  >
+                    {shoppingStateLabel(provider.state)}
+                  </Badge>
+                </div>
+                <p className="mt-3 text-xs text-muted-foreground">{provider.reason}</p>
+                {(provider.state === "approval_required" ||
+                  (!provider.connected && provider.requiresCredentials)) && (
+                  <p className="mt-2 text-[11px] font-medium text-amber-300">
+                    Requires approval or credentials.
+                  </p>
+                )}
+                <div className="mt-3 grid grid-cols-2 gap-3 text-[11px] text-muted-foreground sm:grid-cols-4">
+                  <p>
+                    Last successful sync: {formatSyncTime(provider.lastSuccessfulSyncAt)}
+                  </p>
+                  <p>Last error: {formatSyncTime(provider.lastErrorAt)}</p>
+                  <p>Rate-limit events: {provider.rateLimitEvents ?? 0}</p>
+                  <p>Last rate limit: {formatSyncTime(provider.lastRateLimitedAt ?? null)}</p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </motion.div>
   );
 }
 
@@ -348,7 +563,6 @@ function UsersTab() {
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
-
     try {
       const params = new URLSearchParams();
       params.set("page", String(page));
@@ -358,7 +572,7 @@ function UsersTab() {
       if (search.trim()) params.set("search", search.trim());
 
       const result = await apiClient.get<ListUsersResult>(
-        `${API_ENDPOINTS.admin}/users?${params.toString()}`
+        `${API_ENDPOINTS.admin}/users?${params.toString()}`,
       );
 
       setUsers(result.users);
@@ -382,11 +596,7 @@ function UsersTab() {
     const newRole = user.role === "admin" ? "user" : "admin";
 
     try {
-      await apiClient.patch(
-        `${API_ENDPOINTS.admin}/users/${user.id}/role`,
-        { role: newRole }
-      );
-
+      await apiClient.patch(`${API_ENDPOINTS.admin}/users/${user.id}/role`, { role: newRole });
       toast.success(`${user.name} is now ${newRole}.`);
       void fetchUsers();
     } catch {
@@ -400,10 +610,7 @@ function UsersTab() {
     setDeleting(true);
 
     try {
-      await apiClient.delete(
-        `${API_ENDPOINTS.admin}/users/${deleteTarget.id}`
-      );
-
+      await apiClient.delete(`${API_ENDPOINTS.admin}/users/${deleteTarget.id}`);
       toast.success(`${deleteTarget.name} has been deleted.`);
       setDeleteTarget(null);
       setExpandedId(null);
@@ -493,9 +700,7 @@ function UsersTab() {
                       key={u.id}
                       user={u}
                       expanded={expandedId === u.id}
-                      onToggle={() =>
-                        setExpandedId(expandedId === u.id ? null : u.id)
-                      }
+                      onToggle={() => setExpandedId(expandedId === u.id ? null : u.id)}
                       onRoleChange={() => void handleRoleChange(u)}
                       onDelete={() => setDeleteTarget(u)}
                     />
@@ -508,7 +713,7 @@ function UsersTab() {
           {totalPages > 1 && (
             <div className="flex items-center justify-between border-t border-border px-4 py-3">
               <p className="text-xs text-muted-foreground">
-                Showing {(page - 1) * limit + 1}–{Math.min(page * limit, total)} of {total}
+                Showing {(page - 1) * limit + 1}-{Math.min(page * limit, total)} of {total}
               </p>
 
               <div className="flex gap-1">
@@ -537,10 +742,7 @@ function UsersTab() {
         </div>
       </motion.div>
 
-      <Dialog
-        open={!!deleteTarget}
-        onOpenChange={(o) => !o && setDeleteTarget(null)}
-      >
+      <Dialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -549,29 +751,17 @@ function UsersTab() {
             </DialogTitle>
 
             <DialogDescription>
-              Are you sure you want to delete{" "}
-              <strong>{deleteTarget?.name}</strong>? This action cannot be undone.
+              Are you sure you want to delete <strong>{deleteTarget?.name}</strong>? This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
 
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setDeleteTarget(null)}
-            >
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>
               Cancel
             </Button>
 
-            <Button
-              variant="destructive"
-              disabled={deleting}
-              onClick={() => void handleDelete()}
-            >
-              {deleting ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Trash2 className="mr-2 h-4 w-4" />
-              )}
+            <Button variant="destructive" disabled={deleting} onClick={() => void handleDelete()}>
+              {deleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
               Delete
             </Button>
           </DialogFooter>
@@ -587,17 +777,20 @@ export default function AdminPage() {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(true);
 
+  const loadStats = useCallback(() => {
+    setStatsLoading(true);
+    apiClient
+      .get<AdminStats>(`${API_ENDPOINTS.admin}/stats`)
+      .then((data) => setStats(data))
+      .catch(() => toast.error("Failed to load admin stats."))
+      .finally(() => setStatsLoading(false));
+  }, []);
+
   useEffect(() => {
     if (tab === "overview") {
-      setStatsLoading(true);
-
-      apiClient
-        .get<AdminStats>(`${API_ENDPOINTS.admin}/stats`)
-        .then((data) => setStats(data))
-        .catch(() => toast.error("Failed to load admin stats."))
-        .finally(() => setStatsLoading(false));
+      loadStats();
     }
-  }, [tab]);
+  }, [tab, loadStats]);
 
   if (user && user.role !== "admin") {
     return (
@@ -632,7 +825,7 @@ export default function AdminPage() {
 
       <div className="border-b border-border px-6">
         <div className="flex gap-1">
-          {(["overview", "users"] as const).map((t) => (
+          {(["overview", "providers", "users"] as const).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -640,7 +833,7 @@ export default function AdminPage() {
                 "border-b-2 px-4 py-3 text-sm font-medium capitalize transition-colors",
                 tab === t
                   ? "border-primary text-foreground"
-                  : "border-transparent text-muted-foreground hover:text-foreground"
+                  : "border-transparent text-muted-foreground hover:text-foreground",
               )}
             >
               {t}
@@ -651,7 +844,9 @@ export default function AdminPage() {
 
       <div className="flex-1 overflow-y-auto px-6 py-6">
         {tab === "overview" ? (
-          <OverviewTab stats={stats} loading={statsLoading} />
+          <OverviewTab stats={stats} loading={statsLoading} onRefresh={loadStats} />
+        ) : tab === "providers" ? (
+          <ProvidersTab />
         ) : (
           <UsersTab />
         )}

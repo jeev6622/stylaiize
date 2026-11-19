@@ -85,6 +85,7 @@ export function toUser(doc: UserDocument & { _id: unknown }): User {
       pushNotifications: prefs.pushNotifications ?? false,
       deviceTokens: prefs.deviceTokens ?? [],
       units: prefs.units ?? "metric",
+      favoriteProducts: prefs.favoriteProducts ?? [],
     },
     createdAt: doc.createdAt.toISOString(),
     updatedAt: doc.updatedAt.toISOString(),

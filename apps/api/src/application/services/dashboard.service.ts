@@ -1,38 +1,91 @@
+import type { DashboardActivity, DashboardSummary, Product } from "@stylaiize/shared";
 import { conversationRepository } from "@/infrastructure/repos/conversation.repo";
+import { savedOutfitRepository } from "@/infrastructure/repos/saved-outfit.repo";
 import { wardrobeRepository } from "@/infrastructure/repos/wardrobe.repo";
 import { priceAlertRepository } from "@/infrastructure/repos/price-alert.repo";
 import { calendarRepository } from "@/infrastructure/repos/calendar.repo";
-import { countSavedOutfits } from "@/application/services/saved-outfit.service";
+import { userRepository } from "@/infrastructure/repos/user.repo";
+import { getNotificationStatus } from "@/application/services/account.service";
 
-export interface DashboardSummary {
-  conversations: number;
-  savedOutfits: number;
-  wardrobeItems: number;
-  alerts: number;
-  events: number;
-}
+const RECENT_LIMIT = 5;
 
-/**
- * Aggregates per-user counts for the dashboard landing page.
- * Every promise is individually caught so one failing store never
- * takes the whole dashboard down.
- */
 export async function getDashboardSummary(userId: string): Promise<DashboardSummary> {
-  const convRepo = conversationRepository();
-  const alertRepo = priceAlertRepository();
-  const calRepo = calendarRepository();
+  const [conversations, outfits, wardrobeItems, alerts, events, user, notifications] =
+    await Promise.all([
+      conversationRepository().findByUserId(userId),
+      savedOutfitRepository().findByUserId(userId),
+      wardrobeRepository().countByUserId(userId),
+      priceAlertRepository().findByUserId(userId),
+      calendarRepository().findByUserId(userId),
+      userRepository().findById(userId),
+      getNotificationStatus(userId),
+    ]);
 
-  const [conversations, savedOutfits, wardrobeItems, alerts, events] = await Promise.all([
-    convRepo.findByUserId(userId).then((c) => c.length).catch(() => 0),
-    // Collections that expose a dedicated count are counted in the database
-    // rather than by hydrating every document into memory.
-    countSavedOutfits(userId).catch(() => 0),
-    wardrobeRepository()
-      .countByUserId(userId)
-      .catch(() => 0),
-    alertRepo.findByUserId(userId).then((a) => a.length).catch(() => 0),
-    calRepo.findByUserId(userId).then((c) => c.length).catch(() => 0),
-  ]);
+  const favouriteProducts: Product[] = user?.preferences?.favoriteProducts ?? [];
 
-  return { conversations, savedOutfits, wardrobeItems, alerts, events };
+  const recentConversations = [...conversations]
+    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+    .slice(0, RECENT_LIMIT)
+    .map((conversation) => ({
+      id: conversation.id,
+      title: conversation.title,
+      updatedAt: conversation.updatedAt,
+    }));
+
+  const recentOutfits = [...outfits]
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, RECENT_LIMIT)
+    .map((outfit) => ({
+      id: outfit.id,
+      name: outfit.name,
+      occasion: outfit.occasion ?? null,
+      createdAt: outfit.createdAt,
+    }));
+
+  const recentActivity: DashboardActivity[] = [
+    ...conversations.map((conversation) => ({
+      id: `conversation:${conversation.id}`,
+      type: "conversation" as const,
+      title: conversation.title,
+      at: conversation.updatedAt,
+      href: `/chat`,
+    })),
+    ...outfits.map((outfit) => ({
+      id: `outfit:${outfit.id}`,
+      type: "outfit" as const,
+      title: outfit.name,
+      at: outfit.createdAt,
+      href: `/outfits`,
+    })),
+    ...alerts.map((alert) => ({
+      id: `alert:${alert.id}`,
+      type: "alert" as const,
+      title: "Price alert",
+      at: alert.triggeredAt ?? alert.createdAt,
+      href: `/alerts`,
+    })),
+    ...events.map((event) => ({
+      id: `event:${event.id}`,
+      type: "event" as const,
+      title: event.title,
+      at: event.startsAt,
+      href: `/calendar`,
+    })),
+  ]
+    .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
+    .slice(0, RECENT_LIMIT);
+
+  return {
+    conversations: conversations.length,
+    savedOutfits: outfits.length,
+    wardrobeItems,
+    alerts: alerts.length,
+    events: events.length,
+    favourites: favouriteProducts.length,
+    recentConversations,
+    recentOutfits,
+    favouriteProducts,
+    recentActivity,
+    notifications,
+  };
 }

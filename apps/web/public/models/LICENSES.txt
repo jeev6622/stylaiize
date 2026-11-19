@@ -1,0 +1,2 @@
+female-fashion-model.glb | CC0-1.0 | Harper - Woman Business Suit Standing | Innerscene, adapted from MakeHuman CC0 assets | https://www.innerscene.com/tools/library/3d-parts/harper-3d-person-woman-business-suit-standing-9fde7f08
+male-fashion-model.glb | CC0-1.0 | Daniel - 3D Person Standing Casual | Innerscene, adapted from MakeHuman CC0 assets | https://www.innerscene.com/tools/library/3d-parts/daniel-3d-person-standing-casual-f788af5a

@@ -1,7 +1,7 @@
 /**
  * Feature/service availability flags.
- * Every external service can be absent -> the platform auto-switches to a
- * demo implementation so the app always boots and remains usable.
+ * External services can be absent. Demo implementations require an explicit
+ * opt-in; production paths report unavailable instead of faking delivery.
  */
 import { env } from "./env";
 
@@ -35,5 +35,19 @@ export const isFcmConfigured =
 export const isShoppingConfigured =
   env.SHOPPING_ENABLED && env.SHOPPING_API_URL.trim().length > 0;
 
+export function isOutfitImageConfigured(): boolean {
+  return (
+    env.OUTFIT_IMAGE_ENABLED &&
+    env.OUTFIT_IMAGE_API_URL.trim().length > 0 &&
+    env.OUTFIT_IMAGE_API_KEY.trim().length > 0 &&
+    env.OUTFIT_IMAGE_LICENSE.trim().length > 0
+  );
+}
+
 /** When true, demo-mode fallbacks are permitted when services are missing. */
 export const demoModeAllowed = env.ALLOW_DEMO_MODE;
+
+/** Demo fallbacks require an explicit opt-in, except in automated tests. */
+export function isDemoModeAllowed(): boolean {
+  return env.ALLOW_DEMO_MODE || env.NODE_ENV === "test";
+}

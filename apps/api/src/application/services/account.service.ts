@@ -1,8 +1,9 @@
-import type { User } from "@stylaiize/shared";
+import type { Product, User } from "@stylaiize/shared";
 import { userRepository } from "@/infrastructure/repos/user.repo";
 import { savedOutfitRepository } from "@/infrastructure/repos/saved-outfit.repo";
 import { wardrobeRepository } from "@/infrastructure/repos/wardrobe.repo";
 import { notificationStatus } from "@/application/services/notification.service";
+import { getProductById, getShoppingStatus } from "@/application/services/product.service";
 import {
   hashPassword,
   validatePasswordStrength,
@@ -14,11 +15,14 @@ import {
   UnauthorizedError,
 } from "@/utils/errors";
 
+const MAX_FAVOURITES = 50;
+
 export interface AccountSummary {
   user: Pick<User, "id" | "name" | "email" | "mobile" | "countryCode" | "avatarUrl" | "role" | "emailVerified" | "mobileVerified" | "providers" | "createdAt">;
   stats: {
     savedOutfits: number;
     wardrobeItems: number;
+    favourites: number;
     memberSince: string;
   };
   security: {
@@ -64,6 +68,7 @@ export async function getAccountSummary(userId: string): Promise<AccountSummary>
     stats: {
       savedOutfits,
       wardrobeItems,
+      favourites: user.preferences.favoriteProducts?.length ?? 0,
       memberSince: user.createdAt,
     },
     security: {
@@ -220,5 +225,93 @@ export async function getNotificationStatus(userId: string): Promise<{
     ...notificationStatus(),
     deviceCount: deviceTokens.length,
     pushEnabled: Boolean(user?.preferences?.pushNotifications) && deviceTokens.length > 0,
+  };
+}
+
+export interface FavouritesResult {
+  favourites: Product[];
+  /** True when the saved snapshots came from the sample catalog, not live listings. */
+  demoMode: boolean;
+}
+
+async function verifyProduct(product: Product): Promise<Product> {
+  const verified = await getProductById(product.id);
+  if (!verified || verified.id !== product.id) {
+    throw new NotFoundError("This product is no longer available.", "PRODUCT_NOT_FOUND");
+  }
+  const matches =
+    verified.title === product.title &&
+    verified.brand === product.brand &&
+    verified.imageUrl === product.imageUrl &&
+    verified.price === product.price &&
+    verified.currency === product.currency &&
+    verified.store === product.store &&
+    verified.category === product.category &&
+    verified.buyUrl === product.buyUrl;
+  if (!matches) {
+    throw new BadRequestError(
+      "Product details do not match the catalog. Refresh the product and try again.",
+      "PRODUCT_MISMATCH",
+    );
+  }
+  return verified;
+}
+
+export async function getFavourites(userId: string): Promise<FavouritesResult> {
+  const repo = userRepository();
+  const user = await repo.findById(userId);
+  if (!user) throw new NotFoundError("User not found.");
+  return {
+    favourites: user.preferences.favoriteProducts ?? [],
+    demoMode: getShoppingStatus().demoMode,
+  };
+}
+
+export async function saveFavourite(
+  userId: string,
+  product: Product,
+): Promise<FavouritesResult> {
+  const verified = await verifyProduct(product);
+  const repo = userRepository();
+  const user = await repo.findById(userId);
+  if (!user) throw new NotFoundError("User not found.");
+
+  const existing = user.preferences.favoriteProducts ?? [];
+  const deduped = [verified, ...existing.filter((p) => p.id !== verified.id)].slice(
+    0,
+    MAX_FAVOURITES,
+  );
+
+  const updated = await repo.update(userId, {
+    preferences: {
+      ...user.preferences,
+      favoriteProducts: deduped,
+    },
+  });
+  if (!updated) throw new NotFoundError("User not found.");
+  return {
+    favourites: updated.preferences.favoriteProducts ?? [],
+    demoMode: getShoppingStatus().demoMode,
+  };
+}
+
+export async function removeFavourite(
+  userId: string,
+  productId: string,
+): Promise<FavouritesResult> {
+  const repo = userRepository();
+  const user = await repo.findById(userId);
+  if (!user) throw new NotFoundError("User not found.");
+
+  const favourites = (user.preferences.favoriteProducts ?? []).filter(
+    (p) => p.id !== productId,
+  );
+  const updated = await repo.update(userId, {
+    preferences: { ...user.preferences, favoriteProducts: favourites },
+  });
+  if (!updated) throw new NotFoundError("User not found.");
+  return {
+    favourites: updated.preferences.favoriteProducts ?? [],
+    demoMode: getShoppingStatus().demoMode,
   };
 }

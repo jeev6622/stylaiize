@@ -8,6 +8,7 @@ import morgan from "morgan";
 import { env } from "@/config/env";
 import { apiRateLimiter } from "@/api/middleware/rate-limit";
 import { errorHandler, notFoundHandler } from "@/api/middleware/error.middleware";
+import { resolveCollageCacheDir } from "@/infrastructure/outfit-image/factory";
 import { mountV1Router } from "@/api/routes/v1";
 
 export function createApp(): Express {
@@ -53,6 +54,16 @@ export function createApp(): Express {
   app.use(
     "/uploads",
     express.static(path.resolve(process.cwd(), "uploads"), { maxAge: "7d" }),
+  );
+  app.use(
+    "/generated/outfit-images",
+    express.static(resolveCollageCacheDir(), {
+      maxAge: "7d",
+      setHeaders: (res) => {
+        res.setHeader("Content-Type", "image/webp");
+        res.setHeader("X-Content-Type-Options", "nosniff");
+      },
+    }),
   );
 
   app.use(apiRateLimiter);

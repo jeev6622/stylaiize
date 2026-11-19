@@ -21,6 +21,9 @@ import type {
   PhotoType,
   PriceAlertCondition,
   SavedOutfitSource,
+  ShopAudience,
+  ShopStyleTag,
+  ShoppingProviderState,
   SkinUndertone,
   StorageProvider,
   UserRole,
@@ -48,6 +51,8 @@ export interface UserPreferences {
    */
   deviceTokens: string[];
   units: "metric" | "imperial";
+  /** Verified product snapshots saved by the user from live shopping results. */
+  favoriteProducts: Product[];
 }
 
 export interface User {
@@ -193,6 +198,19 @@ export interface RecommendationResponse {
 // Shopping engine
 // ---------------------------------------------------------------------------
 
+export interface ProductPinCodeAvailability {
+  supported: boolean;
+  pinCode?: string | null;
+  available?: boolean | null;
+  deliveryEstimateDays?: { min: number; max: number } | null;
+  deliveryDate?: { min: string; max: string } | null;
+  deliveryChargesInr?: number | null;
+  availableSizes?: string[] | null;
+  availableColors?: string[] | null;
+  message: string;
+  checkedAt?: string | null;
+}
+
 export interface Product {
   id: string;
   title: string;
@@ -208,9 +226,19 @@ export interface Product {
   deliveryEstimateDays: { min: number; max: number } | null;
   buyUrl: string;
   category: string;
+  audience: ShopAudience;
+  styleTags: ShopStyleTag[];
   colors: string[];
   sizes: string[];
   inStock: boolean;
+  sourcePrice?: { amount: number; currency: string } | null;
+  priceConverted?: boolean;
+  sourceLabel?: string | null;
+  productIdentifier?: string | null;
+  priceVerifiedAt?: string | null;
+  pinCodeAvailability?: ProductPinCodeAvailability | null;
+  matchType?: "exact" | "similar";
+  model3dUrl?: string | null;
 }
 
 export interface PriceComparisonEntry {
@@ -221,9 +249,57 @@ export interface PriceComparisonEntry {
   isBestValue: boolean;
 }
 
+export interface ProductAlternative {
+  product: Product;
+  matchScore: number;
+  reason: string;
+}
+
+export interface ProductComparisonGroup {
+  target: Product;
+  exactMatches: PriceComparisonEntry[];
+  similarAlternatives: ProductAlternative[];
+  lowestPriceInr: number | null;
+  highestPriceInr: number | null;
+  priceDifferenceInr: number | null;
+  lastCheckedAt: string | null;
+  note: string;
+}
+
 export interface PriceComparison {
   canonicalTitle: string;
   entries: PriceComparisonEntry[];
+  exactMatches: PriceComparisonEntry[];
+  similarAlternatives: ProductAlternative[];
+  lowestPriceInr: number | null;
+  highestPriceInr: number | null;
+  priceDifferenceInr: number | null;
+  lastCheckedAt: string | null;
+  note: string;
+}
+
+export interface ShoppingProviderStatusEntry {
+  id: string;
+  label: string;
+  connected: boolean;
+  requiresCredentials: boolean;
+  supported: boolean;
+  state: ShoppingProviderState;
+  reason: string | null;
+  lastSuccessAt: string | null;
+  lastErrorAt: string | null;
+  lastSuccessfulSyncAt: string | null;
+  rateLimitEvents: number;
+  lastRateLimitedAt: string | null;
+  supportedAudiences?: ShopAudience[];
+}
+
+export interface ShoppingProviderStatus {
+  active: "real" | "mock" | "none";
+  activeProviderId: string | null;
+  demoMode: boolean;
+  configured: boolean;
+  providers: ShoppingProviderStatusEntry[];
 }
 
 // ---------------------------------------------------------------------------
@@ -377,6 +453,7 @@ export interface SavedOutfit {
   userId: string;
   name: string;
   category: OutfitCategory;
+  audience: ShopAudience;
   occasion: string | null;
   style: string | null;
   colors: string[];
@@ -610,11 +687,104 @@ export interface BuildYourLookItem {
   imageUrl: string | null;
 }
 
+export interface CompleteOutfitImage {
+  url: string;
+  provider: string;
+  license: string;
+  audience: ShopAudience;
+  generatedAt: string;
+  matchBasis: "verified_products" | "ai_outfit";
+  label?: string;
+  mimeType?: string;
+  width?: number;
+  height?: number;
+}
+
+export type CompleteOutfitImageStatus = "success" | "not_configured" | "error";
+
+export interface CompleteOutfitImageItemInput {
+  id: string;
+  name: string;
+  category: string;
+  color: string;
+  material?: string;
+  size?: string;
+  description?: string;
+  productId?: string;
+  imageUrl?: string | null;
+  brand?: string | null;
+  price?: number;
+  currency?: string;
+  colors?: string[];
+  sizes?: string[];
+  source?: string;
+}
+
+export interface CompleteOutfitImageRequest {
+  eventName: string;
+  audience: ShopAudience;
+  occasion?: string;
+  dressCode?: string;
+  dressCodeReason?: string;
+  style: string;
+  budget?: string;
+  season?: string;
+  colors?: string[];
+  fit?: string;
+  fitGuidance?: string;
+  colorCombination?: string;
+  footwear?: string;
+  accessories?: string[];
+  occasionSuitability?: string;
+  seasonSuitability?: string;
+  explanation?: string;
+  items: CompleteOutfitImageItemInput[];
+}
+
+export interface CompleteOutfitImageResponse {
+  status: CompleteOutfitImageStatus;
+  completeOutfitImage: CompleteOutfitImage | null;
+  image: CompleteOutfitImage | null;
+  audience: ShopAudience;
+  needsConfig: boolean;
+  message: string | null;
+}
+
 export interface BuildYourLookData {
   eventName: string;
+  audience: ShopAudience;
   styleName: string;
   styleMatch: number;
   eventMatch: number;
+  /**
+   * Budget guidance derived from the user's selected band, not a claim about
+   * product prices or availability. `max: null` means no fixed upper cap.
+   */
+  estimatedBudgetInr: { min: number; max: number | null; currency: "INR" } | null;
+  /** How the recommended colours work together. */
+  colorCombination: string;
+  /** Footwear direction for the complete look. */
+  footwear: string;
+  /** Accessory direction for the complete look. */
+  accessories: string[];
+  /** Why the stylist chose this direction. */
+  explanation: string;
+  /** Only present when real weather context was supplied. */
+  weatherNote?: string | null;
+  /** Prominent dress-code guidance produced by the AI stylist. */
+  dressCode?: string | null;
+  dressCodeReason?: string | null;
+  recommendedColors?: string[];
+  fitGuidance?: string | null;
+  accessoryGuidance?: string | null;
+  groomingGuidance?: string | null;
+  occasionSuitability?: string | null;
+  seasonSuitability?: string | null;
+  /** Search phrases generated for the shopping provider; never product data. */
+  shoppingQueries?: string[];
+  /** Only set by a licensed image provider that actually rendered this exact outfit. */
+  completeOutfitImage?: CompleteOutfitImage | null;
+  /** Legacy totals: zero for generated styling guidance, preserved for old saved looks. */
   originalTotal: number;
   optimizedTotal: number;
   savings: number;
@@ -623,6 +793,7 @@ export interface BuildYourLookData {
 
 export interface BuildYourLookGenerateRequest {
   eventName: string;
+  audience: ShopAudience;
   occasion?: string;
   dressCode?: string;
   style: BuildLookStyle;
@@ -635,6 +806,8 @@ export interface BuildYourLookGenerateRequest {
   includeGrooming?: boolean;
   /** Optional styling-only profile from the photo analysis step. */
   styleProfile?: StyleProfile;
+  /** Real weather context, when the client already has it. Never inferred. */
+  weather?: { condition: string; temperatureC: number; isRainy: boolean } | null;
 }
 
 export interface BuildYourLookGenerateResponse {
@@ -646,6 +819,7 @@ export interface BuildYourLookGenerateResponse {
 export interface BuildYourLookItemReplaceRequest {
   /** The complete current look so the AI can recompose it with one item swapped. */
   currentItems: BuildYourLookItem[];
+  audience: ShopAudience;
   itemId: string;
   style?: BuildLookStyle;
   budget?: BuildLookBudget;
@@ -654,10 +828,89 @@ export interface BuildYourLookItemReplaceRequest {
 
 export interface BuildYourLookAddItemRequest {
   currentItems: BuildYourLookItem[];
+  audience: ShopAudience;
   style?: BuildLookStyle;
   budget?: BuildLookBudget;
   category?: string;
   reason?: string;
+}
+
+export interface BuildLookShopItemInput {
+  itemId: string;
+  name: string;
+  category: string;
+  color?: string | null;
+  brand?: string | null;
+  size?: string | null;
+  gender?: string | null;
+  audience?: ShopAudience;
+  style?: BuildLookStyle;
+  query?: string | null;
+}
+
+export interface BuildLookShopMatch {
+  itemId: string;
+  itemName: string;
+  searchQuery: string;
+  status: "found" | "no_product";
+  reason?: string | null;
+  product: Product | null;
+  alternatives: Product[];
+  comparison: ProductComparisonGroup | null;
+  availability: ProductPinCodeAvailability | null;
+}
+
+export interface BuildLookBudgetSummary {
+  budget: string;
+  capInr: number | null;
+  selectedTotalInr: number | null;
+  remainingInr: number | null;
+  cheapestCompleteOutfitInr: number | null;
+  cheapestProductIdsByItem: Record<string, string> | null;
+  complete: boolean;
+  note: string;
+}
+
+export interface BuildLookShopResult {
+  matches: BuildLookShopMatch[];
+  source: "api";
+  sourceLabel: string;
+  fx: { base: string; quote: string; rate: number; date: string } | null;
+  budget: BuildLookBudgetSummary | null;
+  pinCode: string | null;
+  providers: ShoppingProviderStatus;
+  checkedAt: string;
+}
+
+// ---------------------------------------------------------------------------
+// Dashboard
+// ---------------------------------------------------------------------------
+
+export interface DashboardActivity {
+  id: string;
+  type: "conversation" | "outfit" | "favourite" | "alert" | "event";
+  title: string;
+  at: string;
+  href: string;
+}
+
+export interface DashboardSummary {
+  conversations: number;
+  savedOutfits: number;
+  wardrobeItems: number;
+  alerts: number;
+  events: number;
+  favourites: number;
+  recentConversations: Array<{ id: string; title: string; updatedAt: string }>;
+  recentOutfits: Array<{ id: string; name: string; occasion: string | null; createdAt: string }>;
+  favouriteProducts: Product[];
+  recentActivity: DashboardActivity[];
+  notifications: {
+    active: boolean;
+    demoMode: boolean;
+    deviceCount: number;
+    pushEnabled: boolean;
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -669,7 +922,7 @@ export interface ProviderStatus {
   ai: { active: AIProvider | "none"; demoMode: boolean; configured: boolean };
   database: { active: boolean; demoMode: boolean };
   storage: { active: StorageProvider; demoMode: boolean };
-  vton: { active: VTONProvider; demoMode: boolean };
+  vton: { active: VTONProvider | "none"; demoMode: boolean };
   email: { active: boolean; demoMode: boolean };
   /**
    * `active: "none"` means the live catalog is pinned but unconfigured.

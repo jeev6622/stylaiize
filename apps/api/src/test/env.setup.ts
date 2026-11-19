@@ -23,3 +23,7 @@ process.env.VTON_CATVTON_API_URL = "";
 process.env.VTON_CATVTON_API_KEY = "";
 process.env.VTON_HEALTH_URL = "";
 process.env.VTON_CATVTON_HEALTH_URL = "";
+process.env.OUTFIT_IMAGE_ENABLED = "false";
+process.env.OUTFIT_IMAGE_API_URL = "";
+process.env.OUTFIT_IMAGE_API_KEY = "";
+process.env.OUTFIT_IMAGE_LICENSE = "";

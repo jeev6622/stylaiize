@@ -69,11 +69,11 @@ function VerifyOtpForm() {
     if (!canResend) return;
     try {
       await apiClient.post(
-        API_ENDPOINTS.auth.sendOtp,
-        { purpose, target },
+        API_ENDPOINTS.auth.forgotPassword,
+        { identifier: target },
         { skipAuth: true },
       );
-      toast.success("OTP resent successfully.");
+      toast.success("A new verification code has been requested.");
       setCountdown(60);
       setCanResend(false);
     } catch (err) {

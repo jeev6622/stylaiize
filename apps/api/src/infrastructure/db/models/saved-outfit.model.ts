@@ -1,11 +1,12 @@
 import { Schema, model, models } from "mongoose";
 import type { OutfitItem, OutfitScores, SavedOutfit, SavedOutfitSource } from "@stylaiize/shared";
-import { SAVED_OUTFIT_SOURCES } from "@stylaiize/shared";
+import { SAVED_OUTFIT_SOURCES, SHOP_AUDIENCES } from "@stylaiize/shared";
 
 export interface SavedOutfitDocument {
   userId: string;
   name: string;
   category: string;
+  audience: SavedOutfit["audience"];
   occasion: string | null;
   style: string | null;
   colors: string[];
@@ -26,6 +27,7 @@ const SavedOutfitSchema = new Schema<SavedOutfitDocument>(
     userId: { type: String, required: true, index: true },
     name: { type: String, required: true, trim: true, maxlength: 160 },
     category: { type: String, required: true, default: "casual" },
+    audience: { type: String, enum: SHOP_AUDIENCES, required: true, default: "all" },
     occasion: { type: String, default: null },
     style: { type: String, default: null },
     colors: { type: [String], default: [] },
@@ -65,6 +67,7 @@ export function toSavedOutfit(doc: SavedOutfitDocument & { _id: unknown }): Save
     userId: doc.userId,
     name: doc.name,
     category: doc.category as SavedOutfit["category"],
+    audience: (doc.audience ?? "all") as SavedOutfit["audience"],
     occasion: doc.occasion ?? null,
     style: doc.style ?? null,
     colors: doc.colors ?? [],

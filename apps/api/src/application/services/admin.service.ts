@@ -1,13 +1,22 @@
 import { userRepository } from "@/infrastructure/repos/user.repo";
 import { conversationRepository } from "@/infrastructure/repos/conversation.repo";
 import { wardrobeRepository } from "@/infrastructure/repos/wardrobe.repo";
-import type { User } from "@stylaiize/shared";
+import { getDatabaseStatus } from "@/config/mongodb";
+import { aiProviderStatus } from "@/infrastructure/ai/factory";
+import { emailProviderStatus } from "@/infrastructure/email/factory";
+import { shoppingProviderStatus } from "@/infrastructure/shopping/factory";
+import { notificationProviderStatus } from "@/infrastructure/notifications/factory";
+import { storageProviderStatus } from "@/infrastructure/storage/factory";
+import { vtonProviderStatus } from "@/infrastructure/vton/factory";
+import type { ProviderStatus, User } from "@stylaiize/shared";
 
 export interface AdminStats {
   totalUsers: number;
   totalConversations: number;
   totalWardrobeItems: number;
   recentUsers: User[];
+  providers: ProviderStatus;
+  uptime: number;
 }
 
 export async function getStats(): Promise<AdminStats> {
@@ -22,7 +31,26 @@ export async function getStats(): Promise<AdminStats> {
     userRepo.listAll({ limit: 5 }),
   ]);
 
-  return { totalUsers, totalConversations, totalWardrobeItems, recentUsers };
+  const db = getDatabaseStatus();
+  const vton = vtonProviderStatus();
+  const providers: ProviderStatus = {
+    ai: aiProviderStatus(),
+    database: { active: db.connected, demoMode: db.demoMode },
+    storage: storageProviderStatus(),
+    vton: { active: vton.active ?? "none", demoMode: vton.demoMode },
+    email: emailProviderStatus(),
+    shopping: shoppingProviderStatus(),
+    notification: notificationProviderStatus(),
+  };
+
+  return {
+    totalUsers,
+    totalConversations,
+    totalWardrobeItems,
+    recentUsers,
+    providers,
+    uptime: process.uptime(),
+  };
 }
 
 export async function listUsers(options: { page?: number; limit?: number; role?: string; search?: string }) {

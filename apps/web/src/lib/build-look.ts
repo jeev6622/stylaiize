@@ -1,4 +1,8 @@
-import type { BuildYourLookData, BuildYourLookItem } from "@stylaiize/shared";
+import type {
+  BuildYourLookData,
+  BuildYourLookItem,
+  CompleteOutfitImage,
+} from "@stylaiize/shared";
 import type { OutfitData, OutfitItem } from "@/components/build-look/types";
 
 /**
@@ -25,20 +29,27 @@ function anchorFor(category: string, indexWithinCategory: number): [number, numb
 }
 
 export function toOutfitItem(item: BuildYourLookItem, index: number, order: number): OutfitItem {
+  const anyItem = item as BuildYourLookItem & {
+    price?: number;
+    brand?: string | null;
+    rating?: number;
+    store?: string;
+    imageUrl?: string | null;
+  };
   return {
     id: item.id,
     index,
     name: item.name,
-    subtitle: item.subtitle,
-    description: item.description,
-    price: item.price,
-    brand: item.brand ?? "",
-    material: item.material,
-    color: item.color,
-    size: item.size,
-    rating: item.rating,
-    store: item.store,
-    imageUrl: item.imageUrl,
+    subtitle: item.subtitle ?? "",
+    description: item.description ?? "",
+    price: typeof anyItem.price === "number" ? anyItem.price : 0,
+    brand: anyItem.brand ?? null,
+    material: item.material ?? "",
+    color: item.color ?? "",
+    size: item.size ?? "",
+    rating: typeof anyItem.rating === "number" ? anyItem.rating : 0,
+    store: anyItem.store ?? "",
+    imageUrl: anyItem.imageUrl ?? null,
     hotspotPosition: anchorFor(item.category, order),
     category: item.category,
   };
@@ -46,6 +57,25 @@ export function toOutfitItem(item: BuildYourLookItem, index: number, order: numb
 
 export function toOutfitData(look: BuildYourLookData): OutfitData {
   const perCategoryOrder = new Map<string, number>();
+  const anyLook = look as BuildYourLookData & {
+    estimatedBudgetInr?: { min: number; max: number | null; currency: "INR" };
+    colorCombination?: string;
+    footwear?: string;
+    accessories?: string[];
+    explanation?: string;
+    weatherNote?: string | null;
+    dressCode?: string | null;
+    dressCodeReason?: string | null;
+    recommendedColors?: string[];
+    fitGuidance?: string | null;
+    accessoryGuidance?: string | null;
+    groomingGuidance?: string | null;
+    occasionSuitability?: string | null;
+    seasonSuitability?: string | null;
+    shoppingQueries?: string[];
+    inspirationImageUrl?: string | null;
+    completeOutfitImage?: CompleteOutfitImage | null;
+  };
   const items = look.items.map((item, index) => {
     const order = perCategoryOrder.get(item.category) ?? 0;
     perCategoryOrder.set(item.category, order + 1);
@@ -54,33 +84,36 @@ export function toOutfitData(look: BuildYourLookData): OutfitData {
 
   return {
     eventName: look.eventName,
+    audience: look.audience,
+    inspirationImageUrl: anyLook.inspirationImageUrl ?? null,
+    completeOutfitImage: anyLook.completeOutfitImage ?? null,
     styleName: look.styleName,
     styleMatch: look.styleMatch,
     eventMatch: look.eventMatch,
     items,
-    originalTotal: look.originalTotal,
-    optimizedTotal: look.optimizedTotal,
-    savings: look.savings,
+    originalTotal: look.originalTotal ?? 0,
+    optimizedTotal: look.optimizedTotal ?? 0,
+    savings: look.savings ?? 0,
+    estimatedBudgetInr: anyLook.estimatedBudgetInr,
+    colorCombination: anyLook.colorCombination,
+    footwear: anyLook.footwear,
+    accessories: anyLook.accessories,
+    explanation: anyLook.explanation,
+    weatherNote: anyLook.weatherNote ?? null,
+    dressCode: anyLook.dressCode,
+    dressCodeReason: anyLook.dressCodeReason,
+    recommendedColors: anyLook.recommendedColors,
+    fitGuidance: anyLook.fitGuidance,
+    accessoryGuidance: anyLook.accessoryGuidance,
+    groomingGuidance: anyLook.groomingGuidance,
+    occasionSuitability: anyLook.occasionSuitability,
+    seasonSuitability: anyLook.seasonSuitability,
+    shoppingQueries: anyLook.shoppingQueries,
   };
 }
 
 /** Strips 3D-only fields so the current look can be posted back to the API. */
 export function toApiItems(look: BuildYourLookData | null): BuildYourLookItem[] | undefined {
   if (!look) return undefined;
-  return look.items.map((item) => ({
-    id: item.id,
-    name: item.name,
-    subtitle: item.subtitle,
-    description: item.description,
-    brand: item.brand,
-    material: item.material,
-    color: item.color,
-    size: item.size,
-    price: item.price,
-    originalPrice: item.originalPrice,
-    rating: item.rating,
-    store: item.store,
-    category: item.category,
-    imageUrl: item.imageUrl,
-  }));
+  return look.items.map((item) => ({ ...(item as BuildYourLookItem & Record<string, unknown>) }) as BuildYourLookItem);
 }

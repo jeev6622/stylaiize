@@ -1,9 +1,8 @@
 "use client";
 
-import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
-import { Star, X, ShoppingBag, Tag, Palette, Ruler, Building2, ExternalLink, RefreshCw } from "lucide-react";
-import { cn, formatCurrency, storeSearchUrl } from "@/lib/utils";
+import { X, Palette, Ruler, Layers, RefreshCw } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import type { OutfitItem } from "./types";
 
@@ -15,34 +14,13 @@ interface ProductInfoCardProps {
   isReplacing: boolean;
 }
 
-function RatingStars({ rating }: { rating: number }) {
-  return (
-    <div className="flex items-center gap-0.5">
-      {Array.from({ length: 5 }, (_, i) => (
-        <Star
-          key={i}
-          className={cn(
-            "h-4 w-4",
-            i < Math.round(rating)
-              ? "fill-amber-400 text-amber-400"
-              : "text-muted-foreground/30",
-          )}
-        />
-      ))}
-      <span className="ml-1.5 text-sm text-muted-foreground">{rating.toFixed(1)}</span>
-    </div>
-  );
-}export function ProductInfoCard({
+export function ProductInfoCard({
   item,
   isVisible,
   onClose,
   onReplace,
   isReplacing,
 }: ProductInfoCardProps) {
-  // Only link out when we recognise the store. The AI suggests a store name,
-  // it does not return a verified product URL, so we never fake one.
-  const searchUrl = storeSearchUrl(item.store, item.name);
-
   return (
     <AnimatePresence>
       {isVisible && (
@@ -56,69 +34,36 @@ function RatingStars({ rating }: { rating: number }) {
           <button
             onClick={onClose}
             className="absolute right-3 top-3 grid h-8 w-8 place-items-center rounded-full bg-secondary/60 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+            aria-label="Close"
           >
             <X className="h-4 w-4" />
           </button>
 
-          {item.imageUrl && (
-            <div className="relative mb-4 h-44 w-full overflow-hidden rounded-xl bg-secondary/30">
-              <Image
-                src={item.imageUrl}
-                alt={item.name}
-                fill
-                sizes="(max-width: 420px) calc(100vw - 4rem), 332px"
-                unoptimized
-                className="object-cover"
-              />
-            </div>
-          )}
-
           <div className="space-y-4">
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider text-primary">
-                {item.brand}
+                Styling guidance
               </p>
               <h3 className="mt-1 text-xl font-bold text-foreground">{item.name}</h3>
-              <p className="text-sm text-muted-foreground">{item.subtitle}</p>
+              {item.subtitle ? (
+                <p className="text-sm text-muted-foreground">{item.subtitle}</p>
+              ) : null}
             </div>
 
-            <div className="flex items-baseline gap-3">
-              <span className="text-3xl font-bold text-foreground">
-                {formatCurrency(item.price)}
-              </span>
-              <RatingStars rating={item.rating} />
-            </div>
-
-            <p className="text-sm leading-relaxed text-muted-foreground">
-              {item.description}
-            </p>
+            {item.description ? (
+              <p className="text-sm leading-relaxed text-muted-foreground">{item.description}</p>
+            ) : null}
 
             <div className="grid grid-cols-2 gap-2">
-              <DetailRow icon={Tag} label="Category" value={item.category} />
-              <DetailRow icon={Palette} label="Color" value={item.color} />
-              <DetailRow icon={Ruler} label="Size" value={item.size} />
-              <DetailRow icon={Building2} label="Store" value={item.store} />
+              <DetailRow icon={Layers} label="Category" value={item.category} />
+              <DetailRow icon={Palette} label="Colour" value={item.color || "—"} />
+              <DetailRow icon={Ruler} label="Fit/Size" value={item.size || "—"} />
+              <DetailRow icon={Layers} label="Material" value={item.material || "—"} />
             </div>
 
-            <div className="rounded-xl bg-secondary/40 px-3 py-2 text-xs text-muted-foreground">
-              Material: <span className="text-foreground">{item.material}</span>
+            <div className="rounded-xl border border-border/60 bg-secondary/30 px-4 py-3 text-xs text-muted-foreground">
+              This is an AI styling suggestion, not a verified product listing. Prices, brands, stores, and availability are not included.
             </div>
-
-            {searchUrl ? (
-              <Button className="w-full gap-2" size="lg" asChild>
-                <a href={searchUrl} target="_blank" rel="noopener noreferrer">
-                  <ShoppingBag className="h-4 w-4" />
-                  Search {item.store || "stores"}
-                  <ExternalLink className="h-3.5 w-3.5" />
-                </a>
-              </Button>
-            ) : (
-              <div className="rounded-xl border border-border/60 bg-secondary/30 px-4 py-3 text-sm text-muted-foreground">
-                Shopping search is unavailable for{" "}
-                <span className="text-foreground">{item.store || "this item"}</span> on this
-                deployment. Connect a shopping provider in the API .env to enable store search.
-              </div>
-            )}
 
             <Button
               className="w-full gap-2"
@@ -151,7 +96,7 @@ function DetailRow({
       <Icon className="h-3.5 w-3.5 shrink-0 text-primary" />
       <div className="min-w-0">
         <p className="text-[10px] text-muted-foreground">{label}</p>
-        <p className="truncate text-xs font-medium text-foreground">{value}</p>
+        <p className="truncate text-xs font-medium capitalize text-foreground">{value}</p>
       </div>
     </div>
   );

@@ -3,6 +3,7 @@ import {
   OUTFIT_CATEGORIES,
   OUTFIT_ITEM_TYPES,
   SAVED_OUTFIT_SOURCES,
+  SHOP_AUDIENCES,
   type OutfitItem,
   type OutfitScores,
 } from "@stylaiize/shared";
@@ -30,6 +31,7 @@ const OutfitScoresSchema = z.object({
 export const createSavedOutfitSchema = z.object({
   name: z.string().trim().min(1, "Outfit name is required.").max(160),
   category: z.enum(OUTFIT_CATEGORIES).default("casual"),
+  audience: z.enum(SHOP_AUDIENCES).default("all"),
   occasion: z.string().trim().max(120).nullable().optional(),
   style: z.string().trim().max(120).nullable().optional(),
   colors: z.array(z.string().trim().max(60)).max(20).optional(),

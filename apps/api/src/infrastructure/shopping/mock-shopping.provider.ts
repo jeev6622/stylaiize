@@ -10,6 +10,10 @@ import { enrichProductBuyUrl } from "./retailer-url";
 export class MockShoppingProvider implements ShoppingProviderPort {
   readonly isConfigured = true;
   readonly demoMode = true;
+  readonly id = "mock";
+  readonly label = "Demo catalog";
+  readonly requiresCredentials = false;
+  readonly supportsPinCode = false;
 
   async search(input: ShoppingSearchInput): Promise<ShoppingSearchResult> {
     const result = searchMockProducts(input.query, {

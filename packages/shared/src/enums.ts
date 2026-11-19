@@ -56,6 +56,35 @@ export type PhotoType = (typeof PHOTO_TYPES)[number];
 export const GENDERS = ["male", "female", "non_binary", "other"] as const;
 export type Gender = (typeof GENDERS)[number];
 
+/** Audience values returned by verified shopping product feeds. */
+export const SHOP_AUDIENCES = ["men", "women", "unisex", "all"] as const;
+export type ShopAudience = (typeof SHOP_AUDIENCES)[number];
+
+/** Audience values a user may explicitly choose for a generated look. */
+export const BUILD_LOOK_AUDIENCES = ["men", "women", "unisex"] as const;
+export type BuildLookAudience = (typeof BUILD_LOOK_AUDIENCES)[number];
+
+/** Style signals that a provider must explicitly return or that appear in its title/category. */
+export const SHOP_STYLE_TAGS = [
+  "traditional",
+  "western",
+  "formal",
+  "casual",
+  "ethnic",
+  "sports",
+] as const;
+export type ShopStyleTag = (typeof SHOP_STYLE_TAGS)[number];
+
+export const SHOPPING_PROVIDER_STATES = [
+  "connected",
+  "not_configured",
+  "approval_required",
+  "authentication_failed",
+  "temporarily_unavailable",
+  "verification_pending",
+] as const;
+export type ShoppingProviderState = (typeof SHOPPING_PROVIDER_STATES)[number];
+
 export const OUTFIT_CATEGORIES = [
   "casual",
   "smart_casual",

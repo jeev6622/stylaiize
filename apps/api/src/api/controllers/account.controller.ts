@@ -4,14 +4,18 @@ import { toPublicUser } from "@/utils/user";
 import {
   changePassword,
   getAccountSummary,
+  getFavourites,
   getNotificationStatus,
   registerDeviceToken,
+  removeFavourite,
+  saveFavourite,
   unregisterDeviceToken,
   updateProfile,
 } from "@/application/services/account.service";
 import type {
   ChangePasswordSchemaInput,
   RegisterDeviceTokenSchemaInput,
+  SaveFavouriteSchemaInput,
   UnregisterDeviceTokenSchemaInput,
   UpdateProfileSchemaInput,
 } from "@/api/validators/account.schema";
@@ -63,5 +67,30 @@ export const getNotificationStatusController = asyncHandler(
   async (req: Request, res: Response) => {
     const status = await getNotificationStatus(req.user!.id);
     ok(res, status);
+  },
+);
+
+/** GET /account/favourites — saved product snapshots */
+export const getFavouritesController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const result = await getFavourites(req.user!.id);
+    ok(res, result);
+  },
+);
+
+/** POST /account/favourites — save a product snapshot */
+export const saveFavouriteController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const { product } = req.body as SaveFavouriteSchemaInput;
+    const result = await saveFavourite(req.user!.id, product);
+    created(res, result);
+  },
+);
+
+/** DELETE /account/favourites/:id — remove a saved product snapshot */
+export const removeFavouriteController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const result = await removeFavourite(req.user!.id, req.params.id);
+    ok(res, result);
   },
 );

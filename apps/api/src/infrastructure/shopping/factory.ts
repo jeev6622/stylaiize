@@ -2,54 +2,122 @@ import { env } from "@/config/env";
 import { logInfo } from "@/utils/logger";
 import { RealShoppingProvider } from "./real-shopping.provider";
 import { MockShoppingProvider } from "./mock-shopping.provider";
+import { LivostyleFeedProvider } from "./livostyle-feed.provider";
+import { AmazonCreatorsProvider } from "./amazon-creators.provider";
+import { FlipkartAffiliateProvider } from "./flipkart-affiliate.provider";
+import { MultiShoppingProvider } from "./multi-provider";
 import { ShoppingNotConfiguredError } from "./errors";
-import type { ShoppingProviderPort } from "./shopping.interface";
+import type { ShoppingProviderPort, ShoppingProviderStatus } from "./shopping.interface";
 
-let cached: ShoppingProviderPort | null = null;
+let cached: MultiShoppingProvider | null = null;
 
-/**
- * Resolution order:
- *  1. `SHOPPING_PROVIDER=mock` -> demo catalog (explicit, demoMode = true)
- *  2. `SHOPPING_PROVIDER=real` -> live catalog, THROWS `ShoppingNotConfiguredError`
- *     when credentials are missing so we never serve mock products as real
- *  3. unpinned -> live catalog if configured, otherwise demo catalog
- */
-export function resolveShoppingProvider(): ShoppingProviderPort {
-  if (cached) return cached;
-  const real = new RealShoppingProvider();
+function configuredOfficialProviders(): ShoppingProviderPort[] {
+  const providers: ShoppingProviderPort[] = [
+    new AmazonCreatorsProvider(),
+    new FlipkartAffiliateProvider(),
+    new RealShoppingProvider({
+      id: "myntra",
+      label: "Myntra approved feed",
+      url: env.MYNTRA_AFFILIATE_FEED_URL,
+      approvalRequired: true,
+    }),
+    new RealShoppingProvider({
+      id: "ajio",
+      label: "AJIO approved feed",
+      url: env.AJIO_AFFILIATE_FEED_URL,
+      approvalRequired: true,
+    }),
+    new RealShoppingProvider(),
+  ];
+  return providers.filter((provider) => provider.isConfigured);
+}
+
+function createProvider(): MultiShoppingProvider {
+  const freeFeed = new LivostyleFeedProvider();
   const pinned = env.SHOPPING_PROVIDER;
 
   if (pinned === "mock") {
-    cached = new MockShoppingProvider();
-  } else if (pinned === "real") {
-    if (!real.isConfigured) throw new ShoppingNotConfiguredError();
-    cached = real;
-  } else {
-    cached = real.isConfigured ? real : new MockShoppingProvider();
+    return new MultiShoppingProvider([new MockShoppingProvider()]);
   }
+  if (pinned === "livostyle") {
+    return new MultiShoppingProvider([freeFeed]);
+  }
+  if (pinned === "amazon_in") {
+    const amazon = new AmazonCreatorsProvider();
+    if (!amazon.isConfigured) throw new ShoppingNotConfiguredError();
+    return new MultiShoppingProvider([amazon]);
+  }
+  if (pinned === "flipkart") {
+    const flipkart = new FlipkartAffiliateProvider();
+    if (!flipkart.isConfigured) throw new ShoppingNotConfiguredError();
+    return new MultiShoppingProvider([flipkart]);
+  }
+  if (pinned === "real") {
+    const official = configuredOfficialProviders();
+    if (official.length === 0) throw new ShoppingNotConfiguredError();
+    return new MultiShoppingProvider(official);
+  }
+  const official = configuredOfficialProviders();
+  return new MultiShoppingProvider(official.length > 0 ? [freeFeed, ...official] : [freeFeed]);
+}
 
+export function resolveShoppingProvider(): MultiShoppingProvider {
+  if (cached) return cached;
+  cached = createProvider();
   logInfo(
-    `Shopping provider resolved: ${cached.demoMode ? "mock" : "real"}` +
-      (cached.demoMode
-        ? " (demo catalog - results are sample data, not live listings)"
-        : ""),
+    `Shopping providers resolved: ${cached.describeProviders().filter((p) => p.connected).map((p) => p.label).join(" + ")}` +
+      (cached.demoMode ? " (demo catalog - results are sample data, not live listings)" : ""),
   );
   return cached;
 }
 
-export function shoppingProviderStatus(): {
-  active: "real" | "mock" | "none";
-  demoMode: boolean;
-  configured: boolean;
-} {
-  const configured = Boolean(env.SHOPPING_ENABLED) && env.SHOPPING_API_URL.trim().length > 0;
-  const active: "real" | "mock" | "none" =
-    env.SHOPPING_PROVIDER === "real" && !configured
-      ? "none"
-      : env.SHOPPING_PROVIDER === "mock" || !configured
-        ? "mock"
-        : "real";
-  return { active, demoMode: active === "mock", configured };
+function resolveActiveProviderId(
+  pinned: string,
+  active: ShoppingProviderStatus["active"],
+  provider: MultiShoppingProvider | null,
+): string | null {
+  if (active === "mock") return "mock";
+  if (active === "none") return null;
+  if (pinned === "amazon_in" || pinned === "flipkart") return pinned;
+  if (pinned === "livostyle") return "livostyle";
+
+  const ids = provider?.activeProviderIds ?? [];
+  if (ids.length === 0) return null;
+  if (ids.length === 1) return ids[0] ?? null;
+  return ids.every((id) => id === "livostyle") ? "livostyle" : "multi";
+}
+
+export function shoppingProviderStatus(): ShoppingProviderStatus {
+  let provider: MultiShoppingProvider | null = cached;
+  if (!provider) {
+    try {
+      provider = resolveShoppingProvider();
+    } catch {
+      provider = null;
+    }
+  }
+
+  const pinned = env.SHOPPING_PROVIDER;
+  const officialConfigured = configuredOfficialProviders().length > 0;
+  const active: ShoppingProviderStatus["active"] =
+    pinned === "mock"
+      ? "mock"
+      : pinned === "real" && !officialConfigured
+        ? "none"
+        : pinned === "amazon_in" || pinned === "flipkart"
+          ? configuredOfficialProviders().some((item) => item.id === pinned)
+            ? "real"
+            : "none"
+          : "real";
+
+  return {
+    active,
+    activeProviderId: resolveActiveProviderId(pinned, active, provider),
+    demoMode: provider?.demoMode ?? false,
+    configured: provider?.isConfigured ?? false,
+    providers:
+      provider?.describeProviders() ?? new MultiShoppingProvider([]).describeProviders(),
+  };
 }
 
 export function resetShoppingProvider(): void {

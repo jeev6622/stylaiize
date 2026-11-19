@@ -7,8 +7,13 @@ export interface EmailInput {
   replyTo?: string;
 }
 
+export interface EmailSendResult {
+  success: boolean;
+  error?: string;
+}
+
 export interface EmailProviderPort {
   readonly isConfigured: boolean;
   readonly demoMode: boolean;
-  send(input: EmailInput): Promise<void>;
+  send(input: EmailInput): Promise<EmailSendResult>;
 }

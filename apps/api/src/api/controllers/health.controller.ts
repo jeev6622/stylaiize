@@ -20,7 +20,7 @@ export const healthController = asyncHandler(async (_req: Request, res: Response
     ai,
     database: { active: db.connected, demoMode: db.demoMode },
     storage,
-    vton: { active: vton.active ?? "mock", demoMode: vton.demoMode },
+    vton: { active: vton.active ?? "none", demoMode: vton.demoMode },
     email,
     shopping: shoppingProviderStatus(),
     notification: notificationProviderStatus(),

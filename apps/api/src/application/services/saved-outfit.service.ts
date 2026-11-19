@@ -3,6 +3,7 @@ import type {
   Outfit,
   SavedOutfit,
   SavedOutfitSource,
+  ShopAudience,
 } from "@stylaiize/shared";
 import {
   savedOutfitRepository,
@@ -29,6 +30,7 @@ export interface CreateSavedOutfitInput {
   userId: string;
   name: string;
   category: SavedOutfit["category"];
+  audience?: ShopAudience;
   occasion?: string | null;
   style?: string | null;
   colors?: string[];
@@ -45,6 +47,7 @@ export interface CreateSavedOutfitInput {
 export interface UpdateSavedOutfitInput {
   name?: string;
   category?: SavedOutfit["category"];
+  audience?: ShopAudience;
   occasion?: string | null;
   style?: string | null;
   colors?: string[];
@@ -81,6 +84,7 @@ export async function createSavedOutfit(
     userId: input.userId,
     name: input.name,
     category: input.category,
+    audience: input.audience ?? "all",
     occasion: input.occasion ?? null,
     style: input.style ?? null,
     colors: input.colors ?? [],

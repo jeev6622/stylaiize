@@ -1,5 +1,4 @@
 import { env } from "@/config/env";
-import { isFcmConfigured } from "@/config/features";
 import { logError, logInfo } from "@/utils/logger";
 import type {
   NotificationProviderPort,
@@ -63,7 +62,7 @@ export class FCMNotificationProvider implements NotificationProviderPort {
   readonly demoMode = false;
 
   get isConfigured(): boolean {
-    return isFcmConfigured;
+    return env.FCM_SERVER_KEY.trim().length > 0;
   }
 
   async sendPush(payload: NotificationPayload, deviceTokens: string[]): Promise<NotificationResult> {

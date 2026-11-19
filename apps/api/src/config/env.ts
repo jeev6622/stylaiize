@@ -42,6 +42,21 @@ const optionalHttpUrl = z
     { message: "must be an absolute http(s) URL" },
   );
 
+const optionalHttpsUrl = z
+  .string()
+  .optional()
+  .default("")
+  .transform((v) => v.trim())
+  .refine(
+    (v) => v === "" || /^https:\/\/[^\s]+$/i.test(v),
+    { message: "must be an absolute https URL" },
+  );
+
+const positiveTimeout = (defaultValue: number) =>
+  intFromString(defaultValue).refine((v) => v > 0, {
+    message: "must be greater than zero",
+  });
+
 const EnvSchema = z.object({
   NODE_ENV: z
     .enum(["development", "test", "production"])
@@ -166,13 +181,35 @@ const EnvSchema = z.object({
   SHOPPING_ENABLED: booleanFromString,
   SHOPPING_API_URL: z.string().optional().default(""),
   SHOPPING_API_KEY: z.string().optional().default(""),
+  SHOPPING_PROVIDER_LABEL: z.string().trim().max(120).optional().default(""),
+  AMAZON_CREATORS_CLIENT_ID: z.string().optional().default(""),
+  AMAZON_CREATORS_CLIENT_SECRET: z.string().optional().default(""),
+  AMAZON_CREATORS_PARTNER_TAG: z.string().optional().default(""),
+  FLIPKART_AFFILIATE_ID: z.string().optional().default(""),
+  FLIPKART_AFFILIATE_TOKEN: z.string().optional().default(""),
+  MYNTRA_AFFILIATE_FEED_URL: optionalHttpUrl,
+  AJIO_AFFILIATE_FEED_URL: optionalHttpUrl,
   /**
-   * Pin the shopping provider. Empty = use the live catalog when it is
-   * configured, otherwise fall back to the demo catalog (clearly disclosed in
-   * the UI). "real" refuses to fall back, so a missing key surfaces as a
-   * SHOPPING_NOT_CONFIGURED error instead of fake products.
+   * Pin the shopping provider. Empty = use all configured providers.
+   * "mock" explicitly enables the demo catalog; "real" refuses any demo fallback.
    */
-  SHOPPING_PROVIDER: z.enum(["real", "mock"]).or(z.literal("")).default(""),
+  SHOPPING_PROVIDER: z
+    .enum(["real", "mock", "livostyle", "amazon_in", "flipkart"])
+    .or(z.literal(""))
+    .default(""),
+
+  OUTFIT_IMAGE_ENABLED: booleanFromString,
+  OUTFIT_IMAGE_PROVIDER: z.enum(["collage", "http"]).default("collage"),
+  OUTFIT_IMAGE_API_URL: optionalHttpsUrl,
+  OUTFIT_IMAGE_API_KEY: z.string().optional().default(""),
+  OUTFIT_IMAGE_LICENSE: z.string().trim().max(200).optional().default(""),
+  OUTFIT_IMAGE_TIMEOUT_MS: positiveTimeout(60_000),
+  OUTFIT_IMAGE_CACHE_DIR: z.string().trim().default(""),
+  OUTFIT_IMAGE_MAX_DOWNLOAD_BYTES: intFromString(8 * 1024 * 1024),
+  OUTFIT_IMAGE_DOWNLOAD_TIMEOUT_MS: positiveTimeout(15_000),
+  OUTFIT_IMAGE_MAX_SOURCE_DIMENSION: intFromString(2000),
+  MODEL3D_MAX_DOWNLOAD_BYTES: intFromString(25 * 1024 * 1024),
+  MODEL3D_DOWNLOAD_TIMEOUT_MS: positiveTimeout(15_000),
 
   // Rate limiting
   RATE_LIMIT_WINDOW_MS: intFromString(60000),

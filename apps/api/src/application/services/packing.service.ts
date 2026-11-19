@@ -1,7 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { packingListRepository } from "@/infrastructure/repos/packing.repo";
 import type { CreatePackingListInput } from "@/domain/ports/repositories";
+import { PACKING_CATEGORIES } from "@stylaiize/shared";
 import type { PackingList, PackingItem, PackingCategory } from "@stylaiize/shared";
+import { z } from "zod";
 import { NotFoundError } from "@/utils/errors";
 import { aiService } from "@/application/services/ai.service";
 
@@ -40,16 +42,26 @@ export async function deleteList(userId: string, listId: string): Promise<void> 
   await packingListRepository().delete(listId);
 }
 
-interface AIGeneratedPackingList {
-  title: string;
-  items: Array<{
-    name: string;
-    category: PackingCategory;
-    quantity: number;
-    essential: boolean;
-  }>;
-  weatherBasedAdjustments: string[];
-}
+const PACKING_CATEGORY_ENUM = [...PACKING_CATEGORIES] as [
+  PackingCategory,
+  ...PackingCategory[],
+];
+
+const generatedPackingSchema = z.object({
+  title: z.string().trim().min(1).max(160).default("Packing list"),
+  items: z
+    .array(
+      z.object({
+        name: z.string().trim().min(1).max(160),
+        category: z.enum(PACKING_CATEGORY_ENUM),
+        quantity: z.number().int().min(1).max(99).default(1),
+        essential: z.boolean().default(false),
+      }),
+    )
+    .max(100)
+    .default([]),
+  weatherBasedAdjustments: z.array(z.string().trim().min(1).max(200)).max(30).default([]),
+});
 
 export async function generatePackingList(
   userId: string,
@@ -73,22 +85,25 @@ export async function generatePackingList(
     .filter(Boolean)
     .join("\n");
 
-  const result = await aiService.generateJson<AIGeneratedPackingList>({
-    task: "packing_list",
-    instruction: `Generate a comprehensive packing list for a trip. Return a JSON object with:
-        - title: a short descriptive title for the trip
-        - items: array of items, each with name (string), category (one of: clothing, shoes, accessories, toiletries, tech, documents, misc), quantity (number), essential (boolean)
-        - weatherBasedAdjustments: array of string suggestions for weather-appropriate packing
-        Include enough items for the trip duration and activities. Make items practical and specific.`,
-    context,
-    outputSchema: {
-      title: "string",
-      items: [
-        { name: "string", category: "clothing", quantity: 1, essential: true },
-      ],
-      weatherBasedAdjustments: ["string"],
+  const result = await aiService.generateJson(
+    {
+      task: "packing_list",
+      instruction: `Generate a comprehensive packing list for a trip. Return a JSON object with:
+          - title: a short descriptive title for the trip
+          - items: array of items, each with name (string), category (one of: clothing, shoes, accessories, toiletries, tech, documents, misc), quantity (number), essential (boolean)
+          - weatherBasedAdjustments: array of string suggestions for weather-appropriate packing
+          Include enough items for the trip duration and activities. Make items practical and specific.`,
+      context,
+      outputSchema: {
+        title: "string",
+        items: [
+          { name: "string", category: "clothing", quantity: 1, essential: true },
+        ],
+        weatherBasedAdjustments: ["string"],
+      },
     },
-  });
+    generatedPackingSchema,
+  );
 
   const items: PackingItem[] = (result.items ?? []).map((item) => ({
     id: randomUUID(),

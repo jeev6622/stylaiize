@@ -1,8 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Star } from "lucide-react";
-import { cn, formatCurrency } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import type { OutfitItem, ScrollStage } from "./types";
 
 interface ScrollCardProps {
@@ -10,25 +9,6 @@ interface ScrollCardProps {
   item?: OutfitItem;
   isActive: boolean;
   index: number;
-}
-
-function RatingStars({ rating }: { rating: number }) {
-  return (
-    <div className="flex items-center gap-0.5">
-      {Array.from({ length: 5 }, (_, i) => (
-        <Star
-          key={i}
-          className={cn(
-            "h-3.5 w-3.5",
-            i < Math.round(rating)
-              ? "fill-amber-400 text-amber-400"
-              : "text-muted-foreground/40",
-          )}
-        />
-      ))}
-      <span className="ml-1 text-xs text-muted-foreground">{rating.toFixed(1)}</span>
-    </div>
-  );
 }
 
 export function ScrollCard({ stage, item, isActive, index }: ScrollCardProps) {
@@ -68,14 +48,10 @@ export function ScrollCard({ stage, item, isActive, index }: ScrollCardProps) {
         <div className="space-y-3">
           <div>
             <p className="text-lg font-semibold text-foreground">{item.name}</p>
-            <p className="text-xs text-muted-foreground">{item.brand}</p>
+            {item.subtitle ? (
+              <p className="text-xs text-muted-foreground">{item.subtitle}</p>
+            ) : null}
           </div>
-
-          <p className="text-2xl font-bold text-foreground">
-            {formatCurrency(item.price)}
-          </p>
-
-          <RatingStars rating={item.rating} />
 
           {item.description && (
             <blockquote className="border-l-2 border-primary/60 pl-3 text-sm italic text-muted-foreground">
@@ -84,16 +60,19 @@ export function ScrollCard({ stage, item, isActive, index }: ScrollCardProps) {
           )}
 
           <div className="flex flex-wrap gap-2 text-[11px] text-muted-foreground">
-            <span className="rounded-full bg-secondary/60 px-2 py-0.5">
-              {item.color}
-            </span>
-            <span className="rounded-full bg-secondary/60 px-2 py-0.5">
-              {item.material}
-            </span>
-            <span className="rounded-full bg-secondary/60 px-2 py-0.5">
-              {item.size}
-            </span>
+            {item.color ? (
+              <span className="rounded-full bg-secondary/60 px-2 py-0.5">{item.color}</span>
+            ) : null}
+            {item.material ? (
+              <span className="rounded-full bg-secondary/60 px-2 py-0.5">{item.material}</span>
+            ) : null}
+            {item.size ? (
+              <span className="rounded-full bg-secondary/60 px-2 py-0.5">{item.size}</span>
+            ) : null}
+            <span className="rounded-full bg-secondary/60 px-2 py-0.5 capitalize">{item.category}</span>
           </div>
+
+          <p className="text-xs text-muted-foreground">Styling guidance item (not a verified product).</p>
         </div>
       ) : (
         <p className="text-sm leading-relaxed text-muted-foreground">

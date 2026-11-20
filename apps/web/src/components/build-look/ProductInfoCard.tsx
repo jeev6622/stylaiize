@@ -56,9 +56,12 @@ export function ProductInfoCard({
 
             <div className="grid grid-cols-2 gap-2">
               <DetailRow icon={Layers} label="Category" value={item.category} />
-              <DetailRow icon={Palette} label="Colour" value={item.color || "—"} />
-              <DetailRow icon={Ruler} label="Fit/Size" value={item.size || "—"} />
-              <DetailRow icon={Layers} label="Material" value={item.material || "—"} />
+              <DetailRow icon={Palette} label="Colour" value={item.color || "Not provided"}
+ />
+              <DetailRow icon={Ruler} label="Fit/Size" value={item.size || "Not provided"}
+ />
+              <DetailRow icon={Layers} label="Material" value={item.material || "Not provided"}
+ />
             </div>
 
             <div className="rounded-xl border border-border/60 bg-secondary/30 px-4 py-3 text-xs text-muted-foreground">

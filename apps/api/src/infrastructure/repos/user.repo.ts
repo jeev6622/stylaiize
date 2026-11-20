@@ -20,7 +20,7 @@ export class MongoUserRepository implements UserRepository {
       mobile: input.mobile ?? null,
       countryCode: input.countryCode ?? null,
       mobileLower: input.mobile && input.countryCode ? `${input.countryCode}${input.mobile}`.toLowerCase() : null,
-      mobileVerified: false,
+      mobileVerified: input.mobileVerified ?? false,
       passwordHash: input.passwordHash ?? null,
       googleId: input.googleId ?? null,
       avatarUrl: input.avatarUrl ?? null,

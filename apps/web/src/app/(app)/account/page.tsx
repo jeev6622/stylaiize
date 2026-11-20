@@ -509,7 +509,7 @@ if (
                       Save Memory
                     </Button>
                     <p className="text-xs text-muted-foreground">
-                      Saved outfits automatically build this memory — colors, brands and worn
+                      Saved outfits automatically build this memory. Colors, brands, and worn
                       contexts are recorded every time you save or shop a look.
                     </p>
                   </div>

@@ -34,6 +34,12 @@ export async function verifyOTPCode(code: string, hash: string): Promise<boolean
 }
 
 let decoyHash: Promise<string> | null = null;
+let decoyOtpHash: Promise<string> | null = null;
+
+export async function burnOTPHash(code: string): Promise<void> {
+  decoyOtpHash ??= hashOTP(randomBytes(24).toString("hex"));
+  await verifyOTPCode(code, await decoyOtpHash);
+}
 
 /**
  * Burns a real bcrypt comparison against a throw-away hash.

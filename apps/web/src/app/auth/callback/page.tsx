@@ -1,16 +1,16 @@
 "use client";
 
 import { Suspense, useEffect, useRef, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { AuroraBackground } from "@/components/shared/aurora-background";
 import { Logo } from "@/components/shared/logo";
 import { Button } from "@/components/ui/button";
+import { redirectAfterLogin } from "@/lib/auth-redirect";
 import { useAuth } from "@/lib/auth";
 
 function CallbackHandler() {
   const { adoptTokens } = useAuth();
-  const router = useRouter();
   const searchParams = useSearchParams();
   const [failed, setFailed] = useState<string | null>(null);
   const handled = useRef(false);
@@ -34,11 +34,10 @@ function CallbackHandler() {
 
     adoptTokens(accessToken, refreshToken)
       .then(() => {
-        router.replace("/chat");
-        router.refresh();
+        redirectAfterLogin(searchParams);
       })
       .catch(() => setFailed("We signed you in but could not load your profile."));
-  }, [adoptTokens, router, searchParams]);
+  }, [adoptTokens, searchParams]);
 
   if (failed) {
     return (

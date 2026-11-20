@@ -29,7 +29,7 @@ export function BuildLook() {
             <Reveal delay={0.14}>
               <p className="mt-7 max-w-lg text-base leading-relaxed text-neutral-500 sm:text-lg">
                 Set the occasion, pick a style, name your budget, choose your
-                palette — StylAIze assembles every piece into one complete look
+                palette, StylAIze assembles every piece into one complete look
                 you can try, share or shop.
               </p>
             </Reveal>

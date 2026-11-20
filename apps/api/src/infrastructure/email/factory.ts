@@ -44,3 +44,7 @@ export function emailProviderStatus(): { active: boolean; demoMode: boolean } {
 export function resetEmailProvider(): void {
   cached = null;
 }
+
+export function registerEmailProviderForTests(provider: EmailProviderPort | null): void {
+  cached = provider ?? null;
+}

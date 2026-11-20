@@ -2,6 +2,7 @@ import { Schema, model, models } from "mongoose";
 import type { OTPPurpose, OTPRecord } from "@stylaiize/shared";
 
 export interface OTPDocument {
+  target?: string | null;
   userId: string | null;
   email: string | null;
   mobile: string | null;
@@ -17,6 +18,7 @@ export interface OTPDocument {
 
 const OTPSchema = new Schema<OTPDocument>(
   {
+    target: { type: String, default: null, index: true },
     userId: { type: String, default: null, index: true },
     email: { type: String, default: null, index: true },
     mobile: { type: String, default: null },
@@ -48,6 +50,7 @@ export const OTPModel = models.OTP ?? model<OTPDocument>("OTP", OTPSchema);
 export function toOTPRecord(doc: OTPDocument & { _id: unknown }): OTPRecord {
   return {
     id: doc._id?.toString() ?? "",
+    ...(doc.target ? { target: doc.target } : {}),
     userId: doc.userId ?? null,
     email: doc.email ?? null,
     mobile: doc.mobile ?? null,

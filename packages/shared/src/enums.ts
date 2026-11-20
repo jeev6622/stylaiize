@@ -275,6 +275,7 @@ export const OCCASION_PRESETS = [
 ] as const;
 
 export const OTP_PURPOSES = [
+  "login",
   "email_verification",
   "mobile_verification",
   "password_reset",

@@ -28,7 +28,7 @@ const UserSchema = new Schema<UserDocument>(
     emailLower: { type: String, required: true, unique: true, lowercase: true },
     mobile: { type: String, default: null },
     countryCode: { type: String, default: null },
-    mobileLower: { type: String, default: null, sparse: true },
+    mobileLower: { type: String, default: null, unique: true, sparse: true },
     mobileVerified: { type: Boolean, default: false },
     avatarUrl: { type: String, default: null },
     role: { type: String, enum: ["user", "admin"], default: "user" },

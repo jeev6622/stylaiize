@@ -11,6 +11,7 @@ import { OtpInput } from "@/components/auth/otp-input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { apiClient, ApiError } from "@/lib/api";
+import { redirectAfterLogin } from "@/lib/auth-redirect";
 import { API_ENDPOINTS } from "@stylaiize/shared";
 
 function VerifyOtpForm() {
@@ -50,7 +51,7 @@ function VerifyOtpForm() {
       );
       toast.success("Verification successful!");
       if (purpose === "email_verification") {
-        router.push("/chat");
+        redirectAfterLogin(searchParams);
       } else if (purpose === "password_reset") {
         router.push(`/forgot-password?step=reset&target=${encodeURIComponent(target)}&code=${otp}`);
       } else {
@@ -69,8 +70,8 @@ function VerifyOtpForm() {
     if (!canResend) return;
     try {
       await apiClient.post(
-        API_ENDPOINTS.auth.forgotPassword,
-        { identifier: target },
+        API_ENDPOINTS.auth.sendOtp,
+        { purpose, email: target },
         { skipAuth: true },
       );
       toast.success("A new verification code has been requested.");

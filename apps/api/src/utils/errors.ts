@@ -66,6 +66,12 @@ export class ValidationError extends AppError {
   }
 }
 
+export class TooManyRequestsError extends AppError {
+  constructor(message = "Too many requests.", code = "RATE_LIMITED") {
+    super(429, message, { code });
+  }
+}
+
 export class ServiceUnavailableError extends AppError {
   constructor(message = "Service temporarily unavailable.", code = "SERVICE_UNAVAILABLE") {
     super(503, message, { code });

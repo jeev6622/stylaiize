@@ -6,6 +6,7 @@ import { LogOut, Menu } from "lucide-react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Logo } from "@/components/shared/logo";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -67,25 +68,8 @@ export function CinematicNav() {
             : "bg-transparent"
         }`}
       >
-        <Link
-          href="/"
-          className="group flex items-center gap-2.5"
-          aria-label="StylAIze home"
-        >
-          <span
-            className={`grid h-8 w-8 place-items-center rounded-xl font-display text-sm font-semibold text-white ${
-              scrolled ? "bg-neutral-900" : "border border-white/25 bg-white/10"
-            }`}
-          >
-            S
-          </span>
-          <span
-            className={`font-display text-lg font-light tracking-[0.18em] uppercase ${
-              scrolled ? "text-neutral-900" : "text-white"
-            }`}
-          >
-            Styl<span className={scrolled ? "text-neutral-500" : "text-amber-300"}>AI</span>ze
-          </span>
+        <Link href="/" className="group flex items-center" aria-label="StylAIze home">
+          <Logo size="sm" tone={scrolled ? "dark" : "light"} />
         </Link>
 
         <nav className="hidden items-center gap-7 lg:flex">
@@ -185,8 +169,8 @@ export function CinematicNav() {
           </SheetTrigger>
           <SheetContent side="right" className="border-neutral-200 bg-white text-neutral-900">
             <SheetHeader>
-              <SheetTitle className="font-display text-lg font-light tracking-[0.18em] text-neutral-900 uppercase">
-                Styl<span className="text-neutral-500">AI</span>ze
+              <SheetTitle className="text-left">
+                <Logo size="sm" tone="dark" />
               </SheetTitle>
             </SheetHeader>
             <nav className="mt-8 flex flex-col gap-1">

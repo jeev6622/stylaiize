@@ -27,7 +27,7 @@ export function AiStylist() {
           <Reveal delay={0.14}>
             <p className="mt-7 max-w-lg text-base leading-relaxed text-neutral-500 sm:text-lg">
               Ask for a rooftop dinner, a first interview, or something that
-              survives a long flight — and get complete looks with the
+              survives a long flight, and get complete looks with the
               reasoning behind every piece, in plain language.
             </p>
           </Reveal>
@@ -63,7 +63,7 @@ export function AiStylist() {
                 </div>
                 <div className="mt-4 space-y-3">
                   <p className="ml-auto w-fit max-w-[85%] rounded-2xl rounded-br-md bg-neutral-900 px-4 py-2.5 text-[13px] leading-relaxed text-white">
-                    Rooftop dinner tonight — smart, not stiff.
+                    Rooftop dinner tonight, smart but not stiff.
                   </p>
                   <p className="w-fit max-w-[92%] rounded-2xl rounded-bl-md bg-neutral-100 px-4 py-2.5 text-[13px] leading-relaxed text-neutral-800">
                     Navy blazer, open collar, white leather sneakers. Three

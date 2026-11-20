@@ -213,7 +213,7 @@ export default function OutfitsPage() {
           {!hasResults && (
             <div className="space-y-3">
               <p className="text-sm font-medium text-muted-foreground">
-                Quick start — pick an occasion:
+                Quick start, pick an occasion:
               </p>
               <div className="flex flex-wrap gap-2">
                 {OCCASION_PRESETS.map((preset) => (

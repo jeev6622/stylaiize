@@ -39,10 +39,12 @@ export function Footer() {
       <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
         <div className="grid gap-12 lg:grid-cols-5">
           <div className="lg:col-span-2">
-            <Logo size="md" />
+            <Link href="/" aria-label="StylAIze home" className="inline-flex">
+              <Logo size="md" />
+            </Link>
             <p className="mt-4 max-w-xs text-sm leading-relaxed text-muted-foreground">
-              {APP_TAGLINE}. Your AI personal stylist — styled, explained, and
-              shoppable for less.
+              {APP_TAGLINE}. Your AI personal stylist, with complete looks that are
+              explained, shoppable, and made for less.
             </p>
             <div className="mt-6 flex items-center gap-3 text-xs text-muted-foreground">
               <span className="glass rounded-full px-3 py-1.5">Gemini 3 Flash</span>

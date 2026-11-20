@@ -3,7 +3,7 @@ import type { ShopAudience } from "./enums";
 export const APP_NAME = "StylAIze";
 export const APP_TAGLINE = "See it. Style it. Buy it for less.";
 export const APP_DESCRIPTION =
-  "StylAIze is your AI personal stylist. Tell it where you're going, upload a photo, and get a complete personalized look — styled, shoppable, and budget-aware.";
+  "StylAIze is your AI personal stylist. Tell it where you're going, upload a photo, and get a complete personalized look that is styled, shoppable, and budget-aware.";
 
 export const API_V1_PREFIX = "/api/v1";
 
@@ -12,6 +12,9 @@ export const API_ENDPOINTS = {
   auth: {
     config: `${API_V1_PREFIX}/auth/config`,
     register: `${API_V1_PREFIX}/auth/register`,
+    registerStart: `${API_V1_PREFIX}/auth/register/start`,
+    registerResend: `${API_V1_PREFIX}/auth/register/resend`,
+    registerVerify: `${API_V1_PREFIX}/auth/register/verify`,
     login: `${API_V1_PREFIX}/auth/login`,
     refresh: `${API_V1_PREFIX}/auth/refresh`,
     logout: `${API_V1_PREFIX}/auth/logout`,
@@ -19,6 +22,8 @@ export const API_ENDPOINTS = {
     google: `${API_V1_PREFIX}/auth/google`,
     sendOtp: `${API_V1_PREFIX}/auth/otp/send`,
     verifyOtp: `${API_V1_PREFIX}/auth/otp/verify`,
+    sendLoginOtp: `${API_V1_PREFIX}/auth/otp/login/request`,
+    verifyLoginOtp: `${API_V1_PREFIX}/auth/otp/login/verify`,
     forgotPassword: `${API_V1_PREFIX}/auth/forgot-password`,
     resetPassword: `${API_V1_PREFIX}/auth/reset-password`,
     forgotEmail: `${API_V1_PREFIX}/auth/forgot-email`,

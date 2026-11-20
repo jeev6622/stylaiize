@@ -125,7 +125,7 @@ describe("POST /api/v1/outfits", () => {
       .post("/api/v1/outfits")
       .set(auth())
       .send({
-        name: "Build Your Look — Classic · Wedding",
+        name: "Build Your Look, Classic · Wedding",
         category: "smart_casual",
         audience: "men",
         occasion: "Wedding",

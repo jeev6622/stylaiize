@@ -49,11 +49,39 @@ export interface RegisterCredentials {
   countryCode: string;
 }
 
+export type VerificationChannel = "email" | "mobile";
+
+export interface StartRegistrationResult {
+  registrationId: string;
+  email: string;
+  mobile: string;
+  expiresAt: string;
+  resendAvailableAt: string;
+}
+
+export interface RegistrationVerificationResult {
+  channel: VerificationChannel;
+  verified: boolean;
+  bothVerified: boolean;
+}
+
 interface AuthContextValue {
   user: User | null;
   status: AuthStatus;
   login: (credentials: LoginCredentials) => Promise<User>;
-  register: (credentials: RegisterCredentials) => Promise<User>;
+  sendLoginOtp: (email: string) => Promise<void>;
+  loginWithOtp: (email: string, code: string, rememberMe?: boolean) => Promise<User>;
+  startRegistration: (credentials: RegisterCredentials) => Promise<StartRegistrationResult>;
+  resendRegistrationOtp: (
+    registrationId: string,
+    channel: VerificationChannel,
+  ) => Promise<{ channel: VerificationChannel; resendAvailableAt: string }>;
+  verifyRegistrationOtp: (
+    registrationId: string,
+    channel: VerificationChannel,
+    code: string,
+  ) => Promise<RegistrationVerificationResult>;
+  completeRegistration: (registrationId: string) => Promise<User>;
   logout: () => Promise<void>;
   /** Used by the OAuth callback page to adopt tokens handed back by the API. */
   adoptTokens: (accessToken: string, refreshToken: string) => Promise<User>;
@@ -130,10 +158,60 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return data.user;
   }, []);
 
-  const register = useCallback(async (credentials: RegisterCredentials) => {
+  const sendLoginOtp = useCallback(async (email: string) => {
+    await apiClient.post(
+      API_ENDPOINTS.auth.sendLoginOtp,
+      { email },
+      { skipAuth: true },
+    );
+  }, []);
+
+  const loginWithOtp = useCallback(async (email: string, code: string, rememberMe = false) => {
+    const data = await apiClient.post<AuthResultPayload>(
+      API_ENDPOINTS.auth.verifyLoginOtp,
+      { email, code, rememberMe },
+      { skipAuth: true },
+    );
+    setTokens(data.accessToken, data.refreshToken);
+    setUser(data.user);
+    setStatus("authenticated");
+    return data.user;
+  }, []);
+
+  const startRegistration = useCallback(async (credentials: RegisterCredentials) => {
+    return apiClient.post<StartRegistrationResult>(
+      API_ENDPOINTS.auth.registerStart,
+      credentials,
+      { skipAuth: true },
+    );
+  }, []);
+
+  const resendRegistrationOtp = useCallback(
+    async (registrationId: string, channel: VerificationChannel) => {
+      return apiClient.post<{ channel: VerificationChannel; resendAvailableAt: string }>(
+        API_ENDPOINTS.auth.registerResend,
+        { registrationId, channel },
+        { skipAuth: true },
+      );
+    },
+    [],
+  );
+
+  const verifyRegistrationOtp = useCallback(
+    async (registrationId: string, channel: VerificationChannel, code: string) => {
+      return apiClient.post<RegistrationVerificationResult>(
+        API_ENDPOINTS.auth.registerVerify,
+        { registrationId, channel, code },
+        { skipAuth: true },
+      );
+    },
+    [],
+  );
+
+  const completeRegistration = useCallback(async (registrationId: string) => {
     const data = await apiClient.post<AuthResultPayload>(
       API_ENDPOINTS.auth.register,
-      credentials,
+      { registrationId },
       { skipAuth: true },
     );
     setTokens(data.accessToken, data.refreshToken);
@@ -144,7 +222,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     try {
-      await apiClient.post(API_ENDPOINTS.auth.logout, undefined, { skipAuth: true });
+      await apiClient.post(
+        API_ENDPOINTS.auth.logout,
+        { refreshToken: getRefreshToken() },
+        { skipAuth: true },
+      );
     } catch {
       // Token may already be invalid; clearing locally is what matters.
     }
@@ -168,8 +250,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ user, status, login, register, logout, adoptTokens }),
-    [user, status, login, register, logout, adoptTokens],
+    () => ({
+      user,
+      status,
+      login,
+      sendLoginOtp,
+      loginWithOtp,
+      startRegistration,
+      resendRegistrationOtp,
+      verifyRegistrationOtp,
+      completeRegistration,
+      logout,
+      adoptTokens,
+    }),
+    [
+      user,
+      status,
+      login,
+      sendLoginOtp,
+      loginWithOtp,
+      startRegistration,
+      resendRegistrationOtp,
+      verifyRegistrationOtp,
+      completeRegistration,
+      logout,
+      adoptTokens,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

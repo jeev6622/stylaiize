@@ -33,6 +33,9 @@ export class InMemoryUserRepository implements UserRepository {
     if (await this.findByEmail(input.email)) {
       throw new ConflictError("An account with this email already exists.", "EMAIL_TAKEN");
     }
+    if (input.mobile && input.countryCode && await this.findByMobile(input.countryCode, input.mobile)) {
+      throw new ConflictError("An account with this mobile number already exists.", "MOBILE_TAKEN");
+    }
     const now = new Date().toISOString();
     const user: User = {
       id: randomUUID(),
@@ -43,7 +46,7 @@ export class InMemoryUserRepository implements UserRepository {
       avatarUrl: input.avatarUrl ?? null,
       role: "user",
       emailVerified: input.emailVerified ?? false,
-      mobileVerified: false,
+      mobileVerified: input.mobileVerified ?? false,
       providers: input.googleId ? ["google"] : ["email"],
       googleId: input.googleId ?? null,
       passwordHash: input.passwordHash ?? null,

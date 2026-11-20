@@ -51,8 +51,8 @@ export default function SustainabilityPage() {
           </Button>
         </div>
         <p className="mt-3 text-xs text-muted-foreground">
-          Figures are computed from your actual wardrobe and saved outfits — cost per wear is derived
-          from purchase price and times worn, items reused come from outfits you have saved.
+          Figures are computed from your actual wardrobe and saved outfits. Cost per wear is derived
+          from purchase price and times worn, and items reused come from outfits you have saved.
         </p>
       </div>
 
@@ -119,7 +119,7 @@ export default function SustainabilityPage() {
               <p className="font-medium text-foreground">How to improve your score</p>
               <ul className="mt-2 list-disc space-y-1 pl-5">
                 <li>Add brands and prices to your wardrobe items so cost-per-wear is accurate.</li>
-                <li>Wear owned pieces more before buying new — reusing raises your reuse score.</li>
+                <li>Wear owned pieces more before buying new, since reusing raises your reuse score.</li>
                 <li>Save outfits you love; each saved outfit increases your mix-and-match count.</li>
               </ul>
             </div>

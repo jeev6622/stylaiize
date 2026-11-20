@@ -1,8 +1,12 @@
-import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import request from "supertest";
 import { createApp } from "@/app";
 import { registerDemoUserRepository } from "@/infrastructure/repos/user.repo";
 import { InMemoryUserRepository } from "@/infrastructure/repos/memory/user.memory.repo";
+import { registerDemoPendingRegistrationRepository } from "@/infrastructure/repos/pending-registration.repo";
+import { InMemoryPendingRegistrationRepository } from "@/infrastructure/repos/memory/pending-registration.memory.repo";
+import { registerDemoOTPRepository } from "@/infrastructure/repos/otp.repo";
+import { InMemoryOTPRepository } from "@/infrastructure/repos/memory/otp.memory.repo";
 import { registerDemoRefreshTokenRepository } from "@/infrastructure/repos/refresh-token.repo";
 import { InMemoryRefreshTokenRepository } from "@/infrastructure/repos/memory/refresh-token.memory.repo";
 import { uploadRateLimiter } from "@/api/middleware/rate-limit";
@@ -22,26 +26,57 @@ import jwt from "jsonwebtoken";
  * database, so a stolen copy kept minting access tokens for up to 30 days.
  */
 
-const app = createApp();
-
 const PASSWORD = "Str0ng!Passw0rd";
+const COUNTRY_CODE = "+91";
+
+const emailMocks = vi.hoisted(() => ({
+  active: true,
+  send: vi.fn(
+    async (_input: { to: string; subject: string; text: string; html?: string }) => ({
+      success: true as boolean,
+      error: undefined as string | undefined,
+    }),
+  ),
+}));
+
+const smsMocks = vi.hoisted(() => ({
+  active: true,
+  send: vi.fn(
+    async (_input: { to: string; body: string }) => ({
+      success: true as boolean,
+      error: undefined as string | undefined,
+    }),
+  ),
+}));
+
+vi.mock("@/infrastructure/email/factory", () => ({
+  resolveEmailProvider: () => ({
+    isConfigured: emailMocks.active,
+    demoMode: false,
+    send: emailMocks.send,
+  }),
+  emailProviderStatus: () => ({ active: emailMocks.active, demoMode: false }),
+  resetEmailProvider: vi.fn(),
+  registerEmailProviderForTests: vi.fn(),
+}));
+
+vi.mock("@/infrastructure/sms/factory", () => ({
+  SMS_DELIVERY_UNAVAILABLE: "SMS delivery is not configured.",
+  resolveSmsProvider: () => ({
+    isConfigured: smsMocks.active,
+    demoMode: false,
+    send: smsMocks.send,
+  }),
+  smsProviderStatus: () => ({ active: smsMocks.active, demoMode: false }),
+  resetSmsProvider: vi.fn(),
+  registerSmsProviderForTests: vi.fn(),
+}));
+
+const app = createApp();
 
 let userRepository: InMemoryUserRepository;
 let refreshTokenRepository: InMemoryRefreshTokenRepository;
 let userCounter = 0;
-
-beforeAll(() => {
-  userRepository = new InMemoryUserRepository();
-  registerDemoUserRepository(userRepository);
-  refreshTokenRepository = new InMemoryRefreshTokenRepository();
-  registerDemoRefreshTokenRepository(refreshTokenRepository);
-});
-
-beforeEach(() => {
-  userCounter += 1;
-  refreshTokenRepository = new InMemoryRefreshTokenRepository();
-  registerDemoRefreshTokenRepository(refreshTokenRepository);
-});
 
 interface Registered {
   accessToken: string;
@@ -49,17 +84,69 @@ interface Registered {
   userId: string;
 }
 
+function codeForEmail(email: string): string {
+  const call = [...emailMocks.send.mock.calls]
+    .reverse()
+    .find(([input]) => input.to === email);
+  return call?.[0].text.match(/\b\d{6}\b/)?.[0] ?? "";
+}
+
+function codeForMobile(mobile: string): string {
+  const call = [...smsMocks.send.mock.calls]
+    .reverse()
+    .find(([input]) => input.to === mobile);
+  return call?.[0].body.match(/\b\d{6}\b/)?.[0] ?? "";
+}
+
+beforeEach(() => {
+  userCounter += 1;
+  userRepository = new InMemoryUserRepository();
+  registerDemoUserRepository(userRepository);
+  registerDemoPendingRegistrationRepository(new InMemoryPendingRegistrationRepository());
+  registerDemoOTPRepository(new InMemoryOTPRepository());
+  refreshTokenRepository = new InMemoryRefreshTokenRepository();
+  registerDemoRefreshTokenRepository(refreshTokenRepository);
+  emailMocks.active = true;
+  emailMocks.send.mockReset();
+  emailMocks.send.mockResolvedValue({ success: true });
+  smsMocks.active = true;
+  smsMocks.send.mockReset();
+  smsMocks.send.mockResolvedValue({ success: true });
+});
+
 async function register(overrides: Partial<Record<string, string>> = {}): Promise<Registered> {
   const payload = {
     name: `Sec ${userCounter}`,
     email: `sec-${userCounter}@example.com`,
     password: PASSWORD,
     confirmPassword: PASSWORD,
-    mobile: `9000000${userCounter}`,
-    countryCode: "+1",
+    mobile: `9${String(userCounter).padStart(9, "0")}`,
+    countryCode: COUNTRY_CODE,
     ...overrides,
   };
-  const res = await request(app).post("/api/v1/auth/register").send(payload);
+
+  const started = await request(app).post("/api/v1/auth/register/start").send(payload);
+  expect(started.status).toBe(201);
+
+  const registrationId = started.body.data.registrationId as string;
+  expect(registrationId).toBeTruthy();
+
+  const emailCode = codeForEmail(payload.email);
+  const mobileCode = codeForMobile(payload.mobile);
+  expect(emailCode).toMatch(/^\d{6}$/);
+  expect(mobileCode).toMatch(/^\d{6}$/);
+
+  const emailVerification = await request(app)
+    .post("/api/v1/auth/register/verify")
+    .send({ registrationId, channel: "email", code: emailCode });
+  expect(emailVerification.status).toBe(200);
+
+  const mobileVerification = await request(app)
+    .post("/api/v1/auth/register/verify")
+    .send({ registrationId, channel: "mobile", code: mobileCode });
+  expect(mobileVerification.status).toBe(200);
+
+  const res = await request(app).post("/api/v1/auth/register").send({ registrationId });
   expect(res.status).toBe(201);
   return {
     accessToken: res.body.data.accessToken,

@@ -461,7 +461,8 @@ export default function WardrobePage() {
             <p className="max-w-sm text-sm text-muted-foreground">
               {isFiltered
                 ? "Try a different search term or category."
-                : "Add items you own — or upload a photo and let the AI fill in the details."}
+                 : "Add items you own, or upload a photo and let the AI fill in the details."}
+
             </p>
             {!isFiltered && (
               <Button onClick={openCreateDialog} className="mt-4 gap-2">

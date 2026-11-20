@@ -11,8 +11,10 @@ export class DevEmailProvider implements EmailProviderPort {
   readonly demoMode = true;
 
   async send(input: EmailInput): Promise<EmailSendResult> {
+    const [local, domain] = input.to.split("@");
+    const masked = local && domain ? `${local.charAt(0)}***@${domain}` : "***";
     logInfo(
-      `[DEV EMAIL] Demo only, not delivered. To: ${input.to} | Subject: ${input.subject} | Body omitted`,
+      `[DEV EMAIL] Demo only, not delivered. To: ${masked} | Subject: ${input.subject} | Body omitted`,
     );
     return { success: true };
   }

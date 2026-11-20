@@ -59,13 +59,15 @@ export function OtpInput({ value, onChange, disabled }: OtpInputProps) {
   );
 
   return (
-    <div className="flex gap-2 justify-center">
+    <div className="flex justify-center gap-1.5 sm:gap-2">
       {Array.from({ length: 6 }).map((_, i) => (
         <input
           key={i}
           ref={(el) => { inputRefs.current[i] = el; }}
           type="text"
           inputMode="numeric"
+          autoComplete={i === 0 ? "one-time-code" : "off"}
+          aria-label={`Digit ${i + 1} of 6`}
           maxLength={1}
           disabled={disabled}
           value={digits[i] ?? ""}
@@ -74,7 +76,7 @@ export function OtpInput({ value, onChange, disabled }: OtpInputProps) {
           onPaste={handlePaste}
           onFocus={(e) => e.target.select()}
           className={cn(
-            "h-12 w-10 rounded-xl border border-input bg-secondary/40 text-center text-lg font-semibold text-foreground shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-transparent disabled:cursor-not-allowed disabled:opacity-50",
+            "h-12 w-full max-w-[3rem] rounded-xl border border-input bg-secondary/40 text-center text-lg font-semibold text-foreground shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-transparent disabled:cursor-not-allowed disabled:opacity-50",
           )}
         />
       ))}

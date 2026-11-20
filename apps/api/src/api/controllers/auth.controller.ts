@@ -2,16 +2,24 @@ import type { Request, Response } from "express";
 import { isGoogleAuthConfigured } from "@/config/features";
 import { env } from "@/config/env";
 import { aiProviderStatus } from "@/infrastructure/ai/factory";
+import { emailProviderStatus } from "@/infrastructure/email/factory";
+import { smsProviderStatus } from "@/infrastructure/sms/factory";
 import { asyncHandler, ok, created } from "@/utils/async-handler";
 import { UnauthorizedError } from "@/utils/errors";
 import { toPublicUser } from "@/utils/user";
 import * as authService from "@/application/services/auth.service";
 import * as otpService from "@/application/services/otp.service";
+import * as registrationService from "@/application/services/registration.service";
 import type {
   LoginInput,
   RefreshInput,
+  RegistrationIdInput,
+  RegistrationResendInput,
+  RegistrationVerifyInput,
   RegisterV2Input,
   SendOtpInput,
+  SendLoginOtpInput,
+  VerifyLoginOtpInput,
   VerifyOtpInput,
   ForgotPasswordInput,
   ResetPasswordInput,
@@ -28,6 +36,10 @@ export const authConfigController = asyncHandler(async (_req: Request, res: Resp
   ok(res, {
     emailLogin: true,
     mobileLogin: true,
+    emailOtpAvailable: emailProviderStatus().active,
+    mobileOtpAvailable: smsProviderStatus().active,
+    registrationAvailable: emailProviderStatus().active && smsProviderStatus().active,
+    passwordLoginAvailable: true,
     googleLogin: isGoogleAuthConfigured,
     demoMode: !isGoogleAuthConfigured,
     /** Honest AI capability state so the UI never implies a working AI. */
@@ -36,9 +48,24 @@ export const authConfigController = asyncHandler(async (_req: Request, res: Resp
   });
 });
 
-export const registerController = asyncHandler(async (req: Request, res: Response) => {
+export const startRegistrationController = asyncHandler(async (req: Request, res: Response) => {
   const input = req.body as RegisterV2Input;
-  const result = await authService.registerV2(input);
+  created(res, await registrationService.startRegistration(input));
+});
+
+export const resendRegistrationOtpController = asyncHandler(async (req: Request, res: Response) => {
+  const { registrationId, channel } = req.body as RegistrationResendInput;
+  ok(res, await registrationService.resendRegistrationOtp(registrationId, channel));
+});
+
+export const verifyRegistrationOtpController = asyncHandler(async (req: Request, res: Response) => {
+  const { registrationId, channel, code } = req.body as RegistrationVerifyInput;
+  ok(res, await registrationService.verifyRegistrationOtp(registrationId, channel, code));
+});
+
+export const registerController = asyncHandler(async (req: Request, res: Response) => {
+  const { registrationId } = req.body as RegistrationIdInput;
+  const result = await registrationService.completeRegistration(registrationId);
   result.user = toPublicUser(result.user);
   created(res, result);
 });
@@ -90,8 +117,27 @@ export const meController = asyncHandler(async (req: Request, res: Response) => 
 
 export const sendOtpController = asyncHandler(async (req: Request, res: Response) => {
   const input = req.body as SendOtpInput;
-  const result = await otpService.generateOTP(input);
-  ok(res, { sent: true, target: result.target });
+  await otpService.generateOTP(input);
+  ok(res, {
+    success: true,
+    message: "If the account exists, a verification code has been sent.",
+  });
+});
+
+export const requestLoginOtpController = asyncHandler(async (req: Request, res: Response) => {
+  const { email } = req.body as SendLoginOtpInput;
+  await authService.requestLoginOtp(email);
+  ok(res, {
+    success: true,
+    message: "If an account exists for that email, a sign-in code has been sent.",
+  });
+});
+
+export const verifyLoginOtpController = asyncHandler(async (req: Request, res: Response) => {
+  const { email, code, rememberMe } = req.body as VerifyLoginOtpInput;
+  const result = await authService.loginWithOtp(email, code, rememberMe);
+  result.user = toPublicUser(result.user);
+  ok(res, result);
 });
 
 export const verifyOtpController = asyncHandler(async (req: Request, res: Response) => {

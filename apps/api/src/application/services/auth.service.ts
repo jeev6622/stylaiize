@@ -2,6 +2,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import type { User } from "@stylaiize/shared";
 import { env } from "@/config/env";
 import { isGoogleAuthConfigured } from "@/config/features";
+import { emailProviderStatus } from "@/infrastructure/email/factory";
 import { userRepository } from "@/infrastructure/repos/user.repo";
 import { refreshTokenRepository } from "@/infrastructure/repos/refresh-token.repo";
 import {
@@ -16,7 +17,13 @@ import {
   signRefreshToken,
   verifyRefreshToken,
 } from "@/utils/jwt";
-import { hashPassword, burnPasswordCompare, validatePasswordStrength, verifyPassword } from "@/utils/password";
+import {
+  burnOTPHash,
+  burnPasswordCompare,
+  hashPassword,
+  validatePasswordStrength,
+  verifyPassword,
+} from "@/utils/password";
 import { generateOTP, verifyOTP, maskEmail } from "./otp.service";
 
 export interface AuthTokens {
@@ -38,14 +45,6 @@ interface LoginInput {
   email: string;
   password: string;
   rememberMe?: boolean;
-}
-
-interface RegisterV2Input {
-  name: string;
-  email: string;
-  password: string;
-  mobile: string;
-  countryCode: string;
 }
 
 interface MobileLoginInput {
@@ -96,29 +95,61 @@ export async function login(input: LoginInput): Promise<AuthResult> {
   return { user, ...(await issueTokens(user, undefined, input.rememberMe ?? false)) };
 }
 
-export async function registerV2(input: RegisterV2Input): Promise<AuthResult> {
-  const existingEmail = await userRepository().findByEmail(input.email);
-  if (existingEmail) {
-    throw new ConflictError("An account with this email already exists.", "EMAIL_TAKEN");
+export async function requestLoginOtp(email: string): Promise<{ success: true }> {
+  const normalized = email.trim().toLowerCase();
+  if (!emailProviderStatus().active) {
+    throw new ServiceUnavailableError(
+      "Email delivery is currently unavailable.",
+      "EMAIL_DELIVERY_UNAVAILABLE",
+    );
   }
-  const existingMobile = await userRepository().findByMobile(input.countryCode, input.mobile);
-  if (existingMobile) {
-    throw new ConflictError("An account with this mobile number already exists.", "MOBILE_TAKEN");
-  }
-  const strength = validatePasswordStrength(input.password);
-  if (!strength.valid) {
-    throw new BadRequestError(strength.errors.join(" "), "WEAK_PASSWORD");
-  }
-  const passwordHash = await hashPassword(input.password);
-  const user = await userRepository().create({
-    name: input.name,
-    email: input.email.toLowerCase(),
-    passwordHash,
-    mobile: input.mobile,
-    countryCode: input.countryCode,
-  });
 
-  return { user, ...(await issueTokens(user)) };
+  const user = await userRepository().findByEmail(normalized);
+  if (!user) {
+    await burnOTPHash("000000");
+    return { success: true };
+  }
+
+  await generateOTP({
+    purpose: "login",
+    userId: user.id,
+    email: normalized,
+    requireRealDelivery: true,
+  });
+  return { success: true };
+}
+
+export async function loginWithOtp(
+  email: string,
+  code: string,
+  rememberMe = false,
+): Promise<AuthResult> {
+  const normalized = email.trim().toLowerCase();
+  const invalid = new UnauthorizedError(
+    "Invalid or expired sign-in code.",
+    "INVALID_OTP",
+  );
+  const result = await verifyOTP({ target: normalized, code, purpose: "login" });
+  if (!result.success || !result.userId) {
+    throw invalid;
+  }
+
+  const user = await userRepository().findById(result.userId);
+  if (!user || user.email.toLowerCase() !== normalized) {
+    throw invalid;
+  }
+
+  if (!user.emailVerified || !user.providers.includes("email")) {
+    const updated = await userRepository().update(user.id, {
+      emailVerified: true,
+      providers: [...new Set([...user.providers, "email" as const])],
+    });
+    if (updated) {
+      return { user: updated, ...(await issueTokens(updated, undefined, rememberMe)) };
+    }
+  }
+
+  return { user, ...(await issueTokens(user, undefined, rememberMe)) };
 }
 
 export async function loginWithMobile(input: MobileLoginInput): Promise<AuthResult> {
@@ -265,7 +296,7 @@ export async function invalidateAllSessions(userId: string): Promise<void> {
   await refreshTokenRepository().revokeAllForUser(userId);
 }
 
-async function issueTokens(
+export async function issueTokens(
   user: User,
   familyId?: string,
   rememberMe = true,

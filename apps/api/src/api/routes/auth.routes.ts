@@ -11,7 +11,12 @@ import {
   meController,
   refreshController,
   registerController,
+  resendRegistrationOtpController,
+  startRegistrationController,
+  verifyRegistrationOtpController,
+  requestLoginOtpController,
   sendOtpController,
+  verifyLoginOtpController,
   verifyOtpController,
   forgotPasswordController,
   resetPasswordController,
@@ -22,7 +27,12 @@ import {
   refreshSchema,
   logoutSchema,
   registerV2Schema,
+  registrationIdSchema,
+  registrationResendSchema,
+  registrationVerifySchema,
+  sendLoginOtpSchema,
   sendOtpSchema,
+  verifyLoginOtpSchema,
   verifyOtpSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
@@ -35,7 +45,10 @@ router.use(authRateLimiter);
 
 router.get("/config", authConfigController);
 
-router.post("/register", validate(registerV2Schema), registerController);
+router.post("/register/start", otpRateLimiter, validate(registerV2Schema), startRegistrationController);
+router.post("/register/resend", otpRateLimiter, validate(registrationResendSchema), resendRegistrationOtpController);
+router.post("/register/verify", otpRateLimiter, validate(registrationVerifySchema), verifyRegistrationOtpController);
+router.post("/register", validate(registrationIdSchema), registerController);
 router.post("/login", validate(loginSchema), loginController);
 router.post("/refresh", validate(refreshSchema), refreshController);
 router.post("/logout", optionalAuth, validate(logoutSchema), logoutController);
@@ -48,6 +61,18 @@ router.get("/google/callback", googleCallbackController);
 // OTP
 router.post("/otp/send", otpRateLimiter, validate(sendOtpSchema), sendOtpController);
 router.post("/otp/verify", otpRateLimiter, validate(verifyOtpSchema), verifyOtpController);
+router.post(
+  "/otp/login/request",
+  otpRateLimiter,
+  validate(sendLoginOtpSchema),
+  requestLoginOtpController,
+);
+router.post(
+  "/otp/login/verify",
+  otpRateLimiter,
+  validate(verifyLoginOtpSchema),
+  verifyLoginOtpController,
+);
 
 // Account recovery
 router.post("/forgot-password", recoveryRateLimiter, validate(forgotPasswordSchema), forgotPasswordController);

@@ -21,9 +21,9 @@ export function SmartSplit() {
             <span className="block italic text-amber-700">Lowest price.</span>
           </h2>
           <p className="mt-6 max-w-md text-base leading-relaxed text-neutral-600">
-            Every piece is compared across stores — price, rating and delivery
-            — so the complete outfit lands at the best total, not just the
-            first listing you see.
+            Every piece is compared across stores for price, rating, and
+            delivery, so the complete outfit lands at the best total, not just
+            the first listing you see.
           </p>
         </Reveal>
 
@@ -71,8 +71,9 @@ export function SmartSplit() {
               <span className="block italic text-amber-200">before you buy.</span>
             </h2>
             <p className="mt-6 max-w-md text-base leading-relaxed text-white/70">
-              Drop in one photo and the full outfit is rendered on you — face,
-              fit and fabric preserved. Compare, keep, or download the result.
+              Drop in one photo and the full outfit is rendered on you, with
+              your face, fit, and fabric preserved. Compare, keep, or download
+              the result.
             </p>
           </Reveal>
 

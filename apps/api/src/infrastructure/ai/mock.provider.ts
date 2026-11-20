@@ -157,7 +157,7 @@ const TASK_RESPONSES: Record<string, (req: AIRequest) => Record<string, unknown>
     outfits: [0, 1, 2, 3, 4].map((i) => outfitSet(i)),
     analysis: null,
     summary:
-      "Based on your event and look, here are five complete outfits. The first two are the strongest matches — they balance formality with comfort and stay within a typical budget.",
+      "Based on your event and look, here are five complete outfits. The first two are the strongest matches because they balance formality with comfort and stay within a typical budget.",
   }),
 
   extract_wardrobe: () => ({
@@ -528,12 +528,12 @@ export class MockProvider implements AIProviderPort {
     const last = req.messages.filter((m) => m.role !== "system").at(-1);
     const userText = last?.content ?? "";
     if (userText.length === 0) {
-      return "Hello! I'm your StylAIze stylist. Tell me where you're going — a wedding, an interview, a date — and I'll build your look.";
+      return "Hello! I'm your StylAIze stylist. Tell me where you're going, like a wedding, an interview, or a date, and I'll build your look.";
     }
     const detected = extractJson(this.buildJson(req, { event: detectEventFromText(userText) }));
     const event = (detected.event as { name?: string } | undefined) ?? {};
     return [
-      `Got it — ${event.name ?? "your event"} it is.`,
+      `Got it, ${event.name ?? "your event"} it is.`,
       "Here's my initial plan: build one polished primary look plus two alternates, keep it comfortable for the full duration, and reuse pieces you already own where possible.",
       "A few quick questions to fine-tune: 1) Indoor or outdoor? 2) Formal or semi-formal? 3) Any colors you want to avoid? 4) Rough budget per outfit?",
     ].join("\n");

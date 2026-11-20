@@ -1,4 +1,4 @@
-import type { AlertChannel, CalendarEvent, Conversation, EventCategory, FashionMemory, GroomingPlan, OTPRecord, OutfitCategory, OutfitItem, OutfitScores, PackingList, PriceAlert, PriceAlertCondition, RefreshTokenRecord, SavedOutfit, SavedOutfitSource, ShopAudience, TryOnResultRecord, User, VTONProvider, WardrobeItem, WardrobeCategory } from "@stylaiize/shared";
+import type { AlertChannel, CalendarEvent, Conversation, EventCategory, FashionMemory, GroomingPlan, OTPRecord, OutfitCategory, OutfitItem, OutfitScores, PackingList, PendingRegistration, PriceAlert, PriceAlertCondition, RefreshTokenRecord, SavedOutfit, SavedOutfitSource, ShopAudience, TryOnResultRecord, User, VTONProvider, WardrobeItem, WardrobeCategory } from "@stylaiize/shared";
 
 export interface CreateUserInput {
   name: string;
@@ -7,6 +7,7 @@ export interface CreateUserInput {
   googleId?: string | null;
   avatarUrl?: string | null;
   emailVerified?: boolean;
+  mobileVerified?: boolean;
   mobile?: string | null;
   countryCode?: string | null;
 }
@@ -24,12 +25,36 @@ export interface UserRepository {
   delete(id: string): Promise<void>;
 }
 
+export type CreatePendingRegistrationInput = Omit<
+  PendingRegistration,
+  "id" | "createdAt" | "updatedAt"
+>;
+
+export interface PendingRegistrationRepository {
+  create(input: CreatePendingRegistrationInput): Promise<PendingRegistration>;
+  findById(id: string): Promise<PendingRegistration | null>;
+  findByEmail(email: string): Promise<PendingRegistration | null>;
+  findByMobile(mobile: string): Promise<PendingRegistration | null>;
+  update(
+    id: string,
+    patch: Partial<Pick<PendingRegistration, "emailVerified" | "mobileVerified" | "emailOtpId" | "mobileOtpId">>,
+  ): Promise<PendingRegistration | null>;
+  delete(id: string): Promise<void>;
+  deleteExpired(now?: Date): Promise<void>;
+}
+
 export interface OTPRepository {
   create(record: OTPRecord): Promise<void>;
   findActive(target: string, purpose: string): Promise<OTPRecord | null>;
   findByTarget(target: string, purpose: string): Promise<OTPRecord | null>;
   incrementAttempts(id: string): Promise<void>;
+  incrementAttemptsIfActive(id: string): Promise<boolean>;
   markUsed(id: string): Promise<void>;
+  consume(id: string): Promise<boolean>;
+  consumeForOwner(id: string, ownerId: string): Promise<boolean>;
+  invalidateActiveForTarget(target: string, purpose: string): Promise<void>;
+  invalidate(id: string): Promise<void>;
+  countRecentForTarget(target: string, purpose: string, since: Date): Promise<number>;
   deleteExpired(): Promise<void>;
 }
 

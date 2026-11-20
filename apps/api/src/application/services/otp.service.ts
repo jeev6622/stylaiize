@@ -1,14 +1,19 @@
-import { randomUUID } from "node:crypto";
+import { randomInt, randomUUID } from "node:crypto";
 import type { OTPPurpose, OTPRecord } from "@stylaiize/shared";
+import { maskMobile } from "@stylaiize/shared";
 import { otpRepository } from "@/infrastructure/repos/otp.repo";
-import { resolveEmailProvider } from "@/infrastructure/email/factory";
-import { hashOTP, verifyOTPCode } from "@/utils/password";
+import { emailProviderStatus, resolveEmailProvider } from "@/infrastructure/email/factory";
+import { SMS_DELIVERY_UNAVAILABLE, resolveSmsProvider, smsProviderStatus } from "@/infrastructure/sms/factory";
+import { burnOTPHash, hashOTP, verifyOTPCode } from "@/utils/password";
 import { logInfo, logWarn } from "@/utils/logger";
-import { ServiceUnavailableError } from "@/utils/errors";
+import { ServiceUnavailableError, TooManyRequestsError } from "@/utils/errors";
 
-const OTP_EXPIRY_MS = 10 * 60 * 1000;
+const OTP_EXPIRY_MS = 5 * 60 * 1000;
 const MAX_ATTEMPTS = 5;
 const OTP_LENGTH = 6;
+const RESEND_COOLDOWN_MS = 60 * 1000;
+const OTP_REQUEST_WINDOW_MS = 15 * 60 * 1000;
+const MAX_REQUESTS_PER_TARGET = 5;
 
 export interface GenerateOTPInput {
   purpose: OTPPurpose;
@@ -16,114 +21,140 @@ export interface GenerateOTPInput {
   email?: string;
   mobile?: string;
   countryCode?: string;
-}
-
-export async function generateOTP(input: GenerateOTPInput): Promise<{ target: string }> {
-  const code = generateCode();
-  const codeHash = await hashOTP(code);
-
-  let target = "";
-  if (input.email) {
-    target = input.email.toLowerCase();
-  } else if (input.mobile && input.countryCode) {
-    target = `${input.countryCode}${input.mobile}`;
-  }
-
-  const record: OTPRecord = {
-    id: randomUUID(),
-    userId: input.userId ?? null,
-    email: input.email?.toLowerCase() ?? null,
-    mobile: input.mobile ?? null,
-    countryCode: input.countryCode ?? null,
-    codeHash,
-    purpose: input.purpose,
-    attempts: 0,
-    maxAttempts: MAX_ATTEMPTS,
-    expiresAt: new Date(Date.now() + OTP_EXPIRY_MS).toISOString(),
-    usedAt: null,
-    createdAt: new Date().toISOString(),
-  };
-
-  await otpRepository().create(record);
-  await otpRepository().deleteExpired();
-
-  logInfo(`[OTP] ${input.purpose} OTP generated for ${maskTarget(target)}`);
-
-  // Send OTP via email if target is an email address
-  if (input.email) {
-    try {
-      const emailProvider = resolveEmailProvider();
-      const purposeLabel = purposeLabelMap[input.purpose] ?? "verification";
-      const result = await emailProvider.send({
-        to: input.email,
-        subject: `Your StylAIze ${purposeLabel} Code`,
-        text: `Your ${purposeLabel} code is: ${code}\n\nThis code expires in 10 minutes. Do not share it with anyone.`,
-        html: otpEmailHtml(code, purposeLabel),
-      });
-      if (!result.success) {
-        throw new ServiceUnavailableError(
-          result.error ?? "Email delivery is not configured.",
-          "EMAIL_DELIVERY_UNAVAILABLE",
-        );
-      }
-      logInfo(
-        `[OTP] Email ${emailProvider.demoMode ? "demo-only (not delivered)" : "sent"} to ${maskEmail(input.email)}`,
-      );
-    } catch (err) {
-      if (err instanceof ServiceUnavailableError) throw err;
-      logWarn("[OTP] Failed to send email", {
-        reason: err instanceof Error ? err.message : String(err),
-      });
-      throw new ServiceUnavailableError(
-        "Could not deliver the verification email.",
-        "EMAIL_DELIVERY_UNAVAILABLE",
-      );
-    }
-  } else if (input.mobile && input.countryCode) {
-    throw new ServiceUnavailableError(
-      "SMS delivery is not configured. Use an email address for verification.",
-      "SMS_DELIVERY_UNAVAILABLE",
-    );
-  }
-
-  return { target };
+  requireRealDelivery?: boolean;
 }
 
 export interface VerifyOTPInput {
   target: string;
   code: string;
   purpose: OTPPurpose;
-  /** When true, validates the OTP but does NOT mark it as used.
-   *  Use this for the verify-otp step so the actual reset-password step
-   *  can still find and consume the same OTP. */
   markUsed?: boolean;
+  expectedUserId?: string;
 }
 
-export async function verifyOTP(input: VerifyOTPInput): Promise<{ success: boolean; userId?: string }> {
-  const record = await otpRepository().findByTarget(input.target, input.purpose);
+export interface VerifyOTPResult {
+  success: boolean;
+  userId?: string;
+  otpId?: string;
+  reason?: "expired" | "invalid" | "attempts_exceeded";
+}
+
+function normalizeTarget(input: Pick<GenerateOTPInput, "email" | "mobile" | "countryCode">): string {
+  if (input.email) return input.email.trim().toLowerCase();
+  if (input.mobile && input.countryCode) return `${input.countryCode}${input.mobile}`;
+  return "";
+}
+
+export async function generateOTP(input: GenerateOTPInput): Promise<{ target: string; otpId: string }> {
+  const target = normalizeTarget(input);
+  if (!target) {
+    throw new ServiceUnavailableError("A valid OTP target is required.", "INVALID_OTP_TARGET");
+  }
+
+  const repo = otpRepository();
+  const now = Date.now();
+  const active = await repo.findActive(target, input.purpose);
+  if (active && now - new Date(active.createdAt).getTime() < RESEND_COOLDOWN_MS) {
+    throw new TooManyRequestsError(
+      "Please wait before requesting another code.",
+      "OTP_RESEND_COOLDOWN",
+    );
+  }
+
+  const recentCount = await repo.countRecentForTarget(
+    target,
+    input.purpose,
+    new Date(now - OTP_REQUEST_WINDOW_MS),
+  );
+  if (recentCount >= MAX_REQUESTS_PER_TARGET) {
+    throw new TooManyRequestsError(
+      "Too many codes requested. Please try again later.",
+      "OTP_TARGET_RATE_LIMIT",
+    );
+  }
+
+  if (input.email && input.requireRealDelivery && !emailProviderStatus().active) {
+    throw new ServiceUnavailableError(
+      "Email delivery is currently unavailable.",
+      "EMAIL_DELIVERY_UNAVAILABLE",
+    );
+  }
+  if (input.mobile && !smsProviderStatus().active) {
+    throw new ServiceUnavailableError(SMS_DELIVERY_UNAVAILABLE, "SMS_DELIVERY_UNAVAILABLE");
+  }
+
+  const code = generateCode();
+  const codeHash = await hashOTP(code);
+  const record: OTPRecord = {
+    id: randomUUID(),
+    target,
+    userId: input.userId ?? null,
+    email: input.email?.trim().toLowerCase() ?? null,
+    mobile: input.mobile ?? null,
+    countryCode: input.countryCode ?? null,
+    codeHash,
+    purpose: input.purpose,
+    attempts: 0,
+    maxAttempts: MAX_ATTEMPTS,
+    expiresAt: new Date(now + OTP_EXPIRY_MS).toISOString(),
+    usedAt: null,
+    createdAt: new Date(now).toISOString(),
+  };
+
+  await repo.invalidateActiveForTarget(target, input.purpose);
+  await repo.create(record);
+  await repo.deleteExpired();
+
+  if (input.email) {
+    await deliverEmailCode(input.email, input.purpose, code, record.id, repo);
+  } else if (input.mobile) {
+    await deliverSmsCode(input.mobile, input.purpose, code, record.id, repo);
+  }
+
+  logInfo(`[OTP] ${input.purpose} code generated for ${maskTarget(target)}`);
+  return { target, otpId: record.id };
+}
+
+export async function verifyOTP(input: VerifyOTPInput): Promise<VerifyOTPResult> {
+  const repo = otpRepository();
+  const target = input.target.trim().toLowerCase();
+  const record = await repo.findByTarget(target, input.purpose);
+  const invalid: VerifyOTPResult = { success: false, reason: "invalid" };
+
   if (!record) {
-    return { success: false };
+    await burnOTPHash(input.code);
+    return invalid;
   }
-
-  if (new Date(record.expiresAt) < new Date()) {
-    return { success: false };
+  if (new Date(record.expiresAt).getTime() <= Date.now()) {
+    await burnOTPHash(input.code);
+    return { success: false, reason: "expired" };
   }
-
   if (record.attempts >= record.maxAttempts) {
-    return { success: false };
+    await burnOTPHash(input.code);
+    return { success: false, reason: "attempts_exceeded" };
+  }
+  if (input.expectedUserId && record.userId !== input.expectedUserId) {
+    await burnOTPHash(input.code);
+    return invalid;
   }
 
   const matches = await verifyOTPCode(input.code, record.codeHash);
   if (!matches) {
-    await otpRepository().incrementAttempts(record.id);
-    return { success: false };
+    await repo.incrementAttemptsIfActive(record.id);
+    return invalid;
   }
 
-  // Only mark as used when markUsed is explicitly true (default: true for backwards compat)
-  if (input.markUsed !== false) {
-    await otpRepository().markUsed(record.id);
+  const consumed = input.expectedUserId
+    ? await repo.consumeForOwner(record.id, input.expectedUserId)
+    : input.markUsed === false
+      ? true
+      : await repo.consume(record.id);
+  if (!consumed) {
+    await burnOTPHash(input.code);
+    return invalid;
   }
-  return { success: true, userId: record.userId ?? undefined };
+
+  return { success: true, userId: record.userId ?? undefined, otpId: record.id };
 }
 
 export function maskEmail(email: string): string {
@@ -135,19 +166,89 @@ export function maskEmail(email: string): string {
 
 function maskTarget(target: string): string {
   if (target.includes("@")) return maskEmail(target);
-  if (target.length > 4) return `${target.slice(0, 3)}${"*".repeat(target.length - 3)}`;
-  return "***";
+  return maskMobile(target);
 }
 
 function generateCode(): string {
-  let code = "";
-  for (let i = 0; i < OTP_LENGTH; i++) {
-    code += Math.floor(Math.random() * 10).toString();
+  return randomInt(0, 10 ** OTP_LENGTH).toString().padStart(OTP_LENGTH, "0");
+}
+
+async function deliverEmailCode(
+  email: string,
+  purpose: OTPPurpose,
+  code: string,
+  recordId: string,
+  repo: ReturnType<typeof otpRepository>,
+): Promise<void> {
+  const provider = resolveEmailProvider();
+  const purposeLabel = purposeLabelMap[purpose] ?? "verification";
+  try {
+    const result = await provider.send({
+      to: email,
+      subject: `Your StylAIze ${purposeLabel} Code`,
+      text: `Your ${purposeLabel} code is: ${code}\n\nThis code expires in 5 minutes. Do not share it with anyone.`,
+      html: otpEmailHtml(code, purposeLabel),
+    });
+    if (!result.success) {
+      await repo.invalidate(recordId);
+      throw new ServiceUnavailableError(
+        "Could not deliver the verification email.",
+        "EMAIL_DELIVERY_UNAVAILABLE",
+      );
+    }
+    logInfo(
+      `[OTP] Email ${provider.demoMode ? "demo-only (not delivered)" : "sent"} to ${maskEmail(email)}`,
+    );
+  } catch (error) {
+    await repo.invalidate(recordId);
+    if (error instanceof ServiceUnavailableError) throw error;
+    logWarn("[OTP] Failed to send email", {
+      reason: error instanceof Error ? error.name : "UNKNOWN_ERROR",
+    });
+    throw new ServiceUnavailableError(
+      "Could not deliver the verification email.",
+      "EMAIL_DELIVERY_UNAVAILABLE",
+    );
   }
-  return code;
+}
+
+async function deliverSmsCode(
+  mobile: string,
+  purpose: OTPPurpose,
+  code: string,
+  recordId: string,
+  repo: ReturnType<typeof otpRepository>,
+): Promise<void> {
+  const provider = resolveSmsProvider();
+  const purposeLabel = purposeLabelMap[purpose] ?? "verification";
+  try {
+    const result = await provider.send({
+      to: mobile,
+      body: `StylAIze ${purposeLabel} code: ${code}. Valid for 5 minutes. Do not share this code.`,
+    });
+    if (!result.success) {
+      await repo.invalidate(recordId);
+      throw new ServiceUnavailableError(
+        "Could not deliver the verification SMS.",
+        "SMS_DELIVERY_UNAVAILABLE",
+      );
+    }
+    logInfo(`[OTP] SMS sent to ${maskMobile(mobile)}`);
+  } catch (error) {
+    await repo.invalidate(recordId);
+    if (error instanceof ServiceUnavailableError) throw error;
+    logWarn("[OTP] Failed to send SMS", {
+      reason: error instanceof Error ? error.name : "UNKNOWN_ERROR",
+    });
+    throw new ServiceUnavailableError(
+      "Could not deliver the verification SMS.",
+      "SMS_DELIVERY_UNAVAILABLE",
+    );
+  }
 }
 
 const purposeLabelMap: Record<OTPPurpose, string> = {
+  login: "sign-in",
   email_verification: "email verification",
   mobile_verification: "mobile verification",
   password_reset: "password reset",
@@ -155,6 +256,7 @@ const purposeLabelMap: Record<OTPPurpose, string> = {
 };
 
 function otpEmailHtml(code: string, purpose: string): string {
+  const expiryMinutes = OTP_EXPIRY_MS / 60_000;
   return `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
@@ -176,7 +278,7 @@ function otpEmailHtml(code: string, purpose: string): string {
       </td></tr>
       <tr><td style="padding-bottom:24px;">
         <p style="color:#8d96ab;font-size:13px;line-height:1.6;margin:0;text-align:center;">
-          Your ${purpose} code is valid for <strong style="color:#e8edf7;">10 minutes</strong>.<br>
+          Your ${purpose} code is valid for <strong style="color:#e8edf7;">${expiryMinutes} minutes</strong>.<br>
           Do not share this code with anyone.
         </p>
       </td></tr>

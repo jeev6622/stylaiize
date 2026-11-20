@@ -605,6 +605,7 @@ export interface GroupStyle {
 
 export interface OTPRecord {
   id: string;
+  target?: string;
   userId: string | null;
   email: string | null;
   mobile: string | null;
@@ -616,6 +617,22 @@ export interface OTPRecord {
   expiresAt: string;
   usedAt: string | null;
   createdAt: string;
+}
+
+export interface PendingRegistration {
+  id: string;
+  name: string;
+  email: string;
+  mobile: string;
+  countryCode: string;
+  passwordHash: string;
+  emailVerified: boolean;
+  mobileVerified: boolean;
+  emailOtpId: string | null;
+  mobileOtpId: string | null;
+  expiresAt: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface RefreshTokenRecord {

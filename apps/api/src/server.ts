@@ -5,6 +5,8 @@ import { registerDemoUserRepository } from "@/infrastructure/repos/user.repo";
 import { InMemoryUserRepository } from "@/infrastructure/repos/memory/user.memory.repo";
 import { registerDemoOTPRepository } from "@/infrastructure/repos/otp.repo";
 import { InMemoryOTPRepository } from "@/infrastructure/repos/memory/otp.memory.repo";
+import { registerDemoPendingRegistrationRepository } from "@/infrastructure/repos/pending-registration.repo";
+import { InMemoryPendingRegistrationRepository } from "@/infrastructure/repos/memory/pending-registration.memory.repo";
 import { registerDemoRefreshTokenRepository } from "@/infrastructure/repos/refresh-token.repo";
 import { InMemoryRefreshTokenRepository } from "@/infrastructure/repos/memory/refresh-token.memory.repo";
 import { registerDemoConversationRepository } from "@/infrastructure/repos/conversation.repo";
@@ -40,6 +42,7 @@ async function bootstrap(): Promise<void> {
     registerDemoPriceAlertRepository(new InMemoryPriceAlertRepository());
     registerDemoTryOnResultRepository(new InMemoryTryOnResultRepository());
     registerDemoOTPRepository(new InMemoryOTPRepository());
+    registerDemoPendingRegistrationRepository(new InMemoryPendingRegistrationRepository());
     registerDemoRefreshTokenRepository(new InMemoryRefreshTokenRepository());
     logInfo("All in-memory demo repositories registered.");
   } else {

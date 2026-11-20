@@ -1,16 +1,54 @@
+import type { FilterQuery } from "mongoose";
 import { getDatabaseStatus } from "@/config/mongodb";
 import type { OTPRecord } from "@stylaiize/shared";
 import type { OTPRepository } from "@/domain/ports/repositories";
-import { OTPModel, toOTPRecord } from "@/infrastructure/db/models/otp.model";
+import { OTPModel, toOTPRecord, type OTPDocument } from "@/infrastructure/db/models/otp.model";
 
-/**
- * Mongoose-backed OTP repository.
- * Used whenever MongoDB is connected so OTPs validate reliably across
- * restarts; the in-memory demo repository is only used in demo mode.
- */
+type OTPQuery = FilterQuery<OTPDocument>;
+
+function targetQuery(target: string): Record<string, unknown> {
+  const normalized = target.toLowerCase();
+  if (normalized.includes("@")) {
+    return { $or: [{ target: normalized }, { email: normalized }] };
+  }
+  return {
+    $or: [
+      { target: normalized },
+      { $expr: { $eq: [{ $concat: ["$countryCode", "$mobile"] }, normalized] } },
+    ],
+  };
+}
+
+function buildQuery(
+  target: string,
+  purpose: string,
+  options: { activeOnly?: boolean; since?: Date } = {},
+): OTPQuery {
+  const query: Record<string, unknown> = { purpose, ...targetQuery(target) };
+  if (options.activeOnly) {
+    query.usedAt = null;
+    query.expiresAt = { $gt: new Date() };
+  }
+  if (options.since) {
+    query.createdAt = { $gte: options.since };
+  }
+  return query as OTPQuery;
+}
+
+function activeIdQuery(id: string, ownerId?: string): OTPQuery {
+  return {
+    _id: id,
+    ...(ownerId ? { userId: ownerId } : {}),
+    usedAt: null,
+    expiresAt: { $gt: new Date() },
+    $expr: { $lt: ["$attempts", "$maxAttempts"] },
+  } as OTPQuery;
+}
+
 export class MongoOTPRepository implements OTPRepository {
   async create(record: OTPRecord): Promise<void> {
     await OTPModel.create({
+      target: record.target ?? null,
       userId: record.userId,
       email: record.email,
       mobile: record.mobile,
@@ -25,42 +63,65 @@ export class MongoOTPRepository implements OTPRepository {
     });
   }
 
-  private async matchTarget(
-    target: string,
-    purpose: string,
-  ): Promise<OTPRecord | null> {
-    const now = new Date();
-    const docs = await OTPModel.find({
-      purpose,
-      usedAt: null,
-      expiresAt: { $gt: now },
-    }).sort({ createdAt: 1 });
-
-    const lowerTarget = target.toLowerCase();
-    for (const doc of docs) {
-      const record = toOTPRecord(doc);
-      const matches =
-        (record.email && record.email.toLowerCase() === lowerTarget) ||
-        (record.mobile && record.countryCode && `${record.countryCode}${record.mobile}` === target);
-      if (matches) return record;
-    }
-    return null;
+  async findActive(target: string, purpose: string): Promise<OTPRecord | null> {
+    const doc = await OTPModel.findOne(buildQuery(target, purpose, { activeOnly: true })).sort({
+      createdAt: -1,
+    });
+    return doc ? toOTPRecord(doc as OTPDocument & { _id: unknown }) : null;
   }
 
   async findByTarget(target: string, purpose: string): Promise<OTPRecord | null> {
-    return this.matchTarget(target, purpose);
-  }
-
-  async findActive(target: string, purpose: string): Promise<OTPRecord | null> {
-    return this.matchTarget(target, purpose);
+    const doc = await OTPModel.findOne(buildQuery(target, purpose)).sort({ createdAt: -1 });
+    return doc ? toOTPRecord(doc as OTPDocument & { _id: unknown }) : null;
   }
 
   async incrementAttempts(id: string): Promise<void> {
     await OTPModel.updateOne({ _id: id }, { $inc: { attempts: 1 } });
   }
 
+  async incrementAttemptsIfActive(id: string): Promise<boolean> {
+    const updated = await OTPModel.findOneAndUpdate(
+      activeIdQuery(id),
+      { $inc: { attempts: 1 } },
+      { new: true },
+    );
+    return updated !== null;
+  }
+
   async markUsed(id: string): Promise<void> {
     await OTPModel.updateOne({ _id: id }, { $set: { usedAt: new Date() } });
+  }
+
+  async consume(id: string): Promise<boolean> {
+    const updated = await OTPModel.findOneAndUpdate(
+      activeIdQuery(id),
+      { $set: { usedAt: new Date() } },
+      { new: true },
+    );
+    return updated !== null;
+  }
+
+  async consumeForOwner(id: string, ownerId: string): Promise<boolean> {
+    const updated = await OTPModel.findOneAndUpdate(
+      activeIdQuery(id, ownerId),
+      { $set: { usedAt: new Date() } },
+      { new: true },
+    );
+    return updated !== null;
+  }
+
+  async invalidateActiveForTarget(target: string, purpose: string): Promise<void> {
+    await OTPModel.updateMany(buildQuery(target, purpose, { activeOnly: true }), {
+      $set: { usedAt: new Date() },
+    });
+  }
+
+  async invalidate(id: string): Promise<void> {
+    await OTPModel.updateOne({ _id: id }, { $set: { usedAt: new Date() } });
+  }
+
+  async countRecentForTarget(target: string, purpose: string, since: Date): Promise<number> {
+    return OTPModel.countDocuments(buildQuery(target, purpose, { since }));
   }
 
   async deleteExpired(): Promise<void> {

@@ -403,15 +403,18 @@ export default function DashboardPage() {
             <div className="space-y-2 text-sm">
               <div className="flex justify-between gap-4">
                 <span className="text-muted-foreground">Name</span>
-                <span className="font-medium text-foreground">{user?.name ?? "—"}</span>
+                <span className="font-medium text-foreground">{user?.name ?? "Not available"}</span>
+
               </div>
               <div className="flex justify-between gap-4">
                 <span className="text-muted-foreground">Email</span>
-                <span className="truncate font-medium text-foreground">{user?.email ?? "—"}</span>
+                <span className="truncate font-medium text-foreground">{user?.email ?? "Not available"}</span>
+
               </div>
               <div className="flex justify-between gap-4">
                 <span className="text-muted-foreground">Role</span>
-                <span className="font-medium capitalize text-foreground">{user?.role ?? "—"}</span>
+                <span className="font-medium capitalize text-foreground">{user?.role ?? "Not available"}</span>
+
               </div>
             </div>
             <div className="mt-4 flex flex-wrap gap-2">

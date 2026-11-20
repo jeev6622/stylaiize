@@ -89,6 +89,13 @@ const EnvSchema = z.object({
   SMTP_PASS: z.string().optional().default(""),
   SMTP_FROM: z.string().default("StylAIze <no-reply@stylaiize.app>"),
 
+  // SMS gateway (provider agnostic HTTPS webhook)
+  SMS_API_URL: optionalHttpUrl,
+  SMS_API_KEY: z.string().optional().default(""),
+  SMS_API_PAYLOAD_TEMPLATE: z.string().optional().default(""),
+  SMS_API_HEADERS_JSON: z.string().optional().default(""),
+  SMS_SENDER_ID: z.string().optional().default("StylAIze"),
+
   // Cloudinary
   CLOUDINARY_CLOUD_NAME: z.string().optional().default(""),
   CLOUDINARY_API_KEY: z.string().optional().default(""),
@@ -244,6 +251,14 @@ function assertProductionSafety(value: Env): void {
   ) {
     throw new Error(
       "Invalid environment configuration: default development JWT secrets are not allowed in production. Set JWT_ACCESS_SECRET and JWT_REFRESH_SECRET.",
+    );
+  }
+  if (
+    value.NODE_ENV === "production" &&
+    value.SMS_API_URL.startsWith("http://")
+  ) {
+    throw new Error(
+      "Invalid environment configuration: SMS_API_URL must use HTTPS in production.",
     );
   }
 }
